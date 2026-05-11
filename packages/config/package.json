@@ -1,0 +1,9 @@
+{
+  "name": "@millionaire/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "exports": {
+    "./tsconfig/base": "./tsconfig.base.json"
+  }
+}

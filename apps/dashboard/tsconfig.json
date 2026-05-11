@@ -1,0 +1,7 @@
+{
+  "extends": "@millionaire/config/tsconfig/base",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": ["src", "vite.config.ts"]
+}

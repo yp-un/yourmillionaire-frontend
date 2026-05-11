@@ -1,0 +1,13 @@
+@import "./globals.css";
+
+@source "..";
+@source "../../../../apps/dashboard/src";
+@source "../../../../apps/landing/app";
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+}

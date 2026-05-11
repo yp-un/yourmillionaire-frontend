@@ -1,0 +1,29 @@
+{
+	"name": "@millionaire/landing",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "next dev --port 3000",
+		"build": "next build",
+		"start": "next start --port 3000",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@millionaire/config": "workspace:*",
+		"@millionaire/ui": "workspace:*",
+		"lucide-react": "1.14.0",
+		"next": "16.2.4",
+		"react": "19.2.5",
+		"react-dom": "19.2.5"
+	},
+	"devDependencies": {
+		"@tailwindcss/postcss": "4.2.2",
+		"@types/node": "25.6.0",
+		"@types/react": "19.2.14",
+		"@types/react-dom": "19.2.3",
+		"postcss": "8.5.13",
+		"tailwindcss": "4.2.2",
+		"typescript": "6.0.3"
+	}
+}
