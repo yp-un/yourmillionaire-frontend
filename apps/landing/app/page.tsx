@@ -89,9 +89,12 @@ export default function Home() {
 
 				<header className="container relative z-20 flex h-16 items-center justify-between">
 					<Link href="/" className="flex items-center gap-2 font-semibold">
-						<span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-							<Landmark className="size-4" aria-hidden="true" />
-						</span>
+						<Image
+							width={30}
+							height={30}
+							src="https://cdn.yourmillionaire.kro.kr/logo.png"
+							alt="로고"
+						/>
 						<span>YourMillionaire</span>
 					</Link>
 					<nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
