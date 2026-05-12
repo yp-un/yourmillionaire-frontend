@@ -45,8 +45,8 @@ const workflow = [
 ];
 
 const currentFeatures = [
-	"법인 통장처럼 관리할 은행 계좌 연결",
-	"연결된 계좌 중 수집 대상만 선택 등록",
+	"사업용으로 관리할 은행 계좌 연결",
+	"연결된 계좌 중 필요한 계좌만 수집 대상으로 선택",
 	"수집된 거래를 복식부기 분개 형태로 조회",
 	"입금/출금 흐름을 조회 범위 기준으로 요약",
 	"확신도가 낮은 분개를 먼저 확인",
@@ -56,7 +56,7 @@ const currentFeatures = [
 const notes = [
 	"계좌 등록 직후에는 아직 표시할 분개가 없을 수 있습니다.",
 	"거래 수집과 분류는 백엔드 파이프라인이 실행된 뒤 반영됩니다.",
-	"지금 화면은 계좌 연결과 분개 확인에 집중합니다.",
+	"현재 대시보드는 계좌 연결과 분개 확인에 집중합니다.",
 ];
 
 const anxieties = [
@@ -113,15 +113,15 @@ export default function Home() {
 				<div className="container relative z-10 flex min-h-[76svh] flex-col justify-center pb-14 pt-12">
 					<div className="max-w-2xl">
 						<Badge variant="secondary" className="mb-5">
-							청년창업자를 위한 회계 정리 베타
+							청년창업자를 위한 회계 정리
 						</Badge>
 						<h1 className="text-balance text-5xl font-semibold tracking-normal text-foreground sm:text-6xl">
-							네가 결제만 하면, 정리는 끝나 있어야 하니까
+							결제만 하면, 회계 정리는 이미 끝나 있어야 하니까
 						</h1>
 						<p className="mt-5 max-w-xl text-balance text-lg leading-8 text-muted-foreground">
-							YourMillionaire는 회계 소프트웨어를 처음 보는 창업자가 은행 계좌를
-							연결하고, 수집된 거래가 분개로 정리되는 과정을 확인하는
-							대시보드입니다.
+							YourMillionaire는 회계 소프트웨어가 낯선 창업자가 은행 계좌를
+							연결하고, 자동으로 수집된 거래가 분개로 정리되는 과정을 확인할 수
+							있는 대시보드입니다.
 						</p>
 						<div className="mt-8 flex flex-col gap-3 sm:flex-row">
 							<Button asChild size="lg">
@@ -145,11 +145,12 @@ export default function Home() {
 				<div>
 					<Badge variant="outline">Persona</Badge>
 					<h2 className="mt-4 text-3xl font-semibold tracking-normal">
-						회계 SW를 한 번도 써본 적 없는 공동창업자
+						회계 소프트웨어가 낯선 창업자
 					</h2>
 					<p className="mt-3 text-muted-foreground">
 						민지는 Figma, Notion, Slack은 익숙하지만 회계 화면은 낯섭니다. 법인
-						통장과 법인카드는 있고, 매달 클라우드 비용과 툴 구독료는 나가지만
+						계좌와 법인카드는 이미 쓰고 있고, 매달 클라우드 비용과 툴 구독료는
+						나가지만
 						재무제표는 읽을 줄 모릅니다.
 					</p>
 				</div>
@@ -172,11 +173,11 @@ export default function Home() {
 				<div className="max-w-2xl">
 					<Badge variant="outline">Dashboard Flow</Badge>
 					<h2 className="mt-4 text-3xl font-semibold tracking-normal">
-						회계 용어보다 먼저 보여야 하는 것
+						회계 용어보다 먼저 보여야 할 정보
 					</h2>
 					<p className="mt-3 text-muted-foreground">
-						현재 대시보드는 계좌를 연결하고, 수집된 거래가 어떻게 분개로
-						정리됐는지 확인하는 흐름에 집중합니다.
+						현재 대시보드는 계좌를 연결하고, 자동으로 수집된 거래가 어떻게
+						분개로 정리됐는지 확인하는 흐름에 집중합니다.
 					</p>
 				</div>
 
@@ -205,7 +206,7 @@ export default function Home() {
 					<div>
 						<Badge variant="secondary">Available Now</Badge>
 						<h2 className="mt-4 text-3xl font-semibold tracking-normal">
-							민지가 실제로 누르게 될 기능
+							창업자가 바로 쓰게 될 기능
 						</h2>
 						<p className="mt-3 max-w-2xl text-muted-foreground">
 							복잡한 회계 메뉴를 늘어놓지 않고, 지금 필요한 두 가지 작업에
@@ -267,7 +268,7 @@ export default function Home() {
 				<span>© 2026 YourMillionaire</span>
 				<span className="flex items-center gap-2">
 					<BadgeCheck className="size-4" aria-hidden="true" />
-					Connect accounts, review journals
+					계좌를 연결하고, 정리된 분개를 확인하세요
 				</span>
 			</footer>
 		</main>
