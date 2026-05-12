@@ -4,7 +4,12 @@ import { BarChart3, ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import {
   Badge,
   Button,
+  EmptyState,
   Input,
+  MetricCard,
+  Notice,
+  PageHeader,
+  PageShell,
   Table,
   TableBody,
   TableCell,
@@ -16,10 +21,11 @@ import {
 
 import { useApi } from "../api/ApiProvider";
 import { YmApiError } from "../api/client";
-import type { JournalEntry } from "../api/types";
+import type { AccountBalanceCard, JournalEntry, PendingDrafts } from "../api/types";
 import {
   formatCurrency,
   formatJournalLines,
+  type AccountLabelMap,
   getCurrentMonthRange,
   getEntryAmount,
   getEntryMovement,
@@ -37,6 +43,9 @@ export function TransactionsPage() {
   const [from, setFrom] = useState(defaultRange.from);
   const [to, setTo] = useState(defaultRange.to);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [accountBalances, setAccountBalances] = useState<AccountBalanceCard[]>([]);
+  const [accountLabels, setAccountLabels] = useState<AccountLabelMap>({});
+  const [pendingDrafts, setPendingDrafts] = useState<PendingDrafts | null>(null);
   const [filter, setFilter] = useState<EntryFilter>("all");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -83,6 +92,8 @@ export function TransactionsPage() {
 
         if (!cancelled) {
           setEntries((current) => (offset === 0 ? response.entries : [...current, ...response.entries]));
+          setAccountBalances(response.accountBalances ?? []);
+          setPendingDrafts(response.pendingDrafts ?? null);
           setHasMore(response.entries.length === limit);
           setLoadState("ready");
         }
@@ -101,6 +112,31 @@ export function TransactionsPage() {
     };
   }, [api, from, offset, requestKey, selectedTenantId, to, workspaceStatus]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .getAccountsChart()
+      .then((response) => {
+        if (!cancelled) {
+          setAccountLabels(
+            Object.fromEntries(
+              response.accounts.map((account) => [account.code, account.name]),
+            ),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAccountLabels({});
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
   function handleApplyRange() {
     setOffset(0);
     setHasMore(true);
@@ -108,29 +144,33 @@ export function TransactionsPage() {
   }
 
   const stats = [
-    { label: "조회 범위 입금", value: formatCurrency(summary.moneyIn), color: "text-primary" },
-    { label: "조회 범위 출금", value: formatCurrency(summary.moneyOut), color: "text-red-600" },
-    { label: "순현금흐름", value: formatCurrency(summary.moneyIn - summary.moneyOut), color: "text-slate-900" }
+    { label: "조회 범위 입금", value: formatCurrency(summary.moneyIn), tone: "primary" as const },
+    { label: "조회 범위 출금", value: formatCurrency(summary.moneyOut), tone: "danger" as const },
+    { label: "순현금흐름", value: formatCurrency(summary.moneyIn - summary.moneyOut), tone: "default" as const }
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <PageShell>
+      <PageHeader
+        title="분개 원장"
+      />
+
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="group relative w-full max-w-2xl">
           <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-primary transition-transform group-focus-within:scale-110" aria-hidden="true" />
           <Input
-            className="h-12 rounded-lg border-slate-200 bg-white pl-12 shadow-sm focus-visible:ring-primary/20"
+            className="h-12 border-border bg-card pl-12 focus-visible:ring-primary/20"
             placeholder="분개 설명, 계정코드, 메모 검색"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:w-auto lg:min-w-[25rem]">
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500">
+        <div className="ym-date-grid lg:w-auto lg:min-w-[25rem]">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground">
             <span>시작일</span>
             <Input
-              className="h-10 w-full bg-white number-tabular"
+              className="h-10 w-full bg-card number-tabular"
               type="date"
               value={from}
               onChange={(event) => {
@@ -140,10 +180,10 @@ export function TransactionsPage() {
               }}
             />
           </label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground">
             <span>종료일</span>
             <Input
-              className="h-10 w-full bg-white number-tabular"
+              className="h-10 w-full bg-card number-tabular"
               type="date"
               value={to}
               onChange={(event) => {
@@ -159,23 +199,38 @@ export function TransactionsPage() {
         </div>
       </section>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+      {error ? <Notice tone="danger">{error}</Notice> : null}
+
+      {pendingDrafts && pendingDrafts.count > 0 ? (
+        <Notice tone="warning">{pendingDrafts.message}</Notice>
+      ) : null}
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {stats.map((stat) => (
-          <div key={stat.label} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="font-medium text-slate-500">{stat.label}</p>
-              <BarChart3 className={cn("size-5", stat.color)} aria-hidden="true" />
-            </div>
-            <p className={cn("text-2xl font-semibold number-tabular", stat.color)}>{stat.value}</p>
-          </div>
+          <MetricCard key={stat.label} icon={BarChart3} label={stat.label} value={stat.value} tone={stat.tone} />
         ))}
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex gap-2">
+      {accountBalances.length > 0 ? (
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-base font-semibold tracking-normal">주요 계정 잔액</h3>
+            <p className="mt-1 text-sm text-muted-foreground">조회 범위 기준으로 집계된 계정별 잔액입니다.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {accountBalances.slice(0, 3).map((balance) => (
+              <div key={balance.accountCode} className="ym-surface p-4">
+                <p className="text-sm font-medium text-muted-foreground">{balance.displayName || balance.accountName}</p>
+                <p className="mt-2 text-xl font-semibold number-tabular">{formatCurrency(balance.balance)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="ym-surface overflow-hidden">
+        <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2">
             <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>
               전체 내역
             </FilterButton>
@@ -186,29 +241,25 @@ export function TransactionsPage() {
               지출
             </FilterButton>
           </div>
-          <div className="flex items-center gap-3 text-sm text-slate-500">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Filter className="size-4" aria-hidden="true" />
             <span>{filteredEntries.length}건 표시</span>
           </div>
         </div>
 
         {loadState === "loading" && entries.length === 0 ? (
-          <div className="flex min-h-80 items-center justify-center text-sm text-slate-500">
+          <div className="flex min-h-80 items-center justify-center text-sm text-muted-foreground">
             <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
             분개를 불러오는 중
           </div>
         ) : filteredEntries.length === 0 ? (
-          <div className="flex min-h-80 flex-col items-center justify-center bg-slate-50/60 p-8 text-center">
-            <BarChart3 className="size-8 text-slate-400" aria-hidden="true" />
-            <p className="mt-3 font-medium text-slate-700">표시할 분개가 없습니다</p>
-            <p className="mt-1 text-sm leading-6 text-slate-500">
-              날짜 범위를 조정하거나 계좌 등록 후 백엔드 수집 파이프라인이 완료될 때까지 기다려 주세요.
-            </p>
-          </div>
+          <EmptyState icon={BarChart3} title="표시할 분개가 없습니다">
+            날짜 범위를 조정하거나 계좌 등록 후 수집 파이프라인이 완료될 때까지 기다려 주세요.
+          </EmptyState>
         ) : (
           <Table className="min-w-[880px]">
             <TableHeader>
-              <TableRow className="bg-slate-50/60 uppercase hover:bg-slate-50/60">
+              <TableRow className="bg-muted/70 uppercase hover:bg-muted/70">
                 <TableHead className="px-6 py-4">날짜</TableHead>
                 <TableHead className="px-6 py-4">내용</TableHead>
                 <TableHead className="px-6 py-4">분개</TableHead>
@@ -222,19 +273,19 @@ export function TransactionsPage() {
                   const confidence = entry.aiConfidence ?? 1;
 
                   return (
-                    <TableRow key={entry.id} className="hover:bg-slate-50/80">
-                      <TableCell className="px-6 py-4 text-sm text-slate-500 number-tabular">{entry.entryDate}</TableCell>
+                    <TableRow key={entry.id}>
+                      <TableCell className="px-6 py-4 text-sm text-muted-foreground number-tabular">{entry.entryDate}</TableCell>
                       <TableCell className="max-w-[260px] px-6 py-4">
-                        <p className="truncate font-semibold text-slate-800">{entry.description ?? "거래 분개"}</p>
-                        <p className="mt-1 text-xs text-slate-400">{entry.source === "codef_bank" ? "CODEF 자동 수집" : "수동 입력"}</p>
+                        <p className="truncate font-semibold text-foreground">{entry.description ?? "거래 분개"}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{entry.source === "codef_bank" ? "CODEF 자동 수집" : "수동 입력"}</p>
                       </TableCell>
-                      <TableCell className="max-w-[360px] px-6 py-4 text-sm leading-6 text-slate-600">
-                        <span className="line-clamp-2">{formatJournalLines(entry)}</span>
+                      <TableCell className="max-w-[360px] px-6 py-4 text-sm leading-6 text-muted-foreground">
+                        <span className="line-clamp-2">{formatJournalLines(entry, accountLabels)}</span>
                       </TableCell>
                       <TableCell
                         className={cn(
                           "px-6 py-4 text-right font-semibold number-tabular",
-                          movement === "income" ? "text-primary" : movement === "expense" ? "text-red-600" : "text-slate-800"
+                          movement === "income" ? "text-primary" : movement === "expense" ? "text-destructive" : "text-foreground"
                         )}
                       >
                         {movement === "income" ? "+" : movement === "expense" ? "-" : ""}
@@ -250,7 +301,7 @@ export function TransactionsPage() {
           </Table>
         )}
 
-        <div className="flex justify-center bg-slate-50/60 p-5">
+        <div className="flex justify-center bg-muted/60 p-5">
           <Button
             variant="ghost"
             disabled={loadState === "loading" || !hasMore}
@@ -261,7 +312,7 @@ export function TransactionsPage() {
           </Button>
         </div>
       </section>
-    </div>
+    </PageShell>
   );
 }
 
@@ -278,7 +329,7 @@ function FilterButton({
     <Button
       className={cn(
         "h-9 rounded-md px-3 text-sm font-medium",
-        active ? "bg-indigo-50 text-primary hover:bg-indigo-50" : "text-slate-500"
+        active ? "bg-accent text-primary hover:bg-accent" : "text-muted-foreground"
       )}
       onClick={onClick}
       type="button"

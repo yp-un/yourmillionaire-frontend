@@ -3,21 +3,53 @@ import axios, { type AxiosInstance, type AxiosRequestConfig } from "axios";
 import { apiConfig } from "./config";
 import { apiEndpoints } from "./endpoints";
 import type {
+  AccountBalancesResponse,
+  AccountsChartResponse,
+  AdminTaxLawSyncStateResponse,
+  AdminTaxRuleChangeLogResponse,
+  AdminTaxRuleReviewsResponse,
+  AdminTaxRulesResponse,
   ApiErrorBody,
   BankAccount,
   BankConnectionRequest,
   BankConnectionResponse,
+  BalanceSheetResponse,
+  CashFlowResponse,
   ClassifyJournalRequest,
+  CorporationProfile,
   CreateBankAccountRequest,
   CreateJournalEntryRequest,
   CreateTenantRequest,
   CreateTenantResponse,
+  ExchangeRate,
+  ExchangeRatesResponse,
+  FilingDraftResponse,
+  FilingRecomputeResponse,
+  FilingsUpcomingResponse,
+  FindBenefitsRequest,
+  FindBenefitsResponse,
+  FxRevalueResponse,
   HealthResponse,
+  IncomeStatementResponse,
+  JournalDraftsResponse,
   JournalEntriesQuery,
   JournalEntriesResponse,
   JournalEntry,
   MeResponse,
-  Tenant
+  MonthlySummaryResponse,
+  PenaltySimulationResponse,
+  ReceivablesBoard,
+  SearchTaxLawRequest,
+  SearchTaxLawResponse,
+  SyncStartResponse,
+  SyncStatusResponse,
+  TaxInvoiceDirection,
+  TaxInvoicesResponse,
+  Tenant,
+  TrialBalanceResponse,
+  UpdateReceivableRequest,
+  UpsertCorporationProfileRequest,
+  WithholdingPendingResponse
 } from "./types";
 
 type GetIdToken = () => Promise<string>;
@@ -72,6 +104,15 @@ export function createYmApi(getIdToken: GetIdToken) {
         method: "GET",
         requiresAuth: false,
         url: apiEndpoints.health
+      })
+  };
+
+  const accounts = {
+    getChart: () =>
+      request<AccountsChartResponse>({
+        method: "GET",
+        requiresAuth: false,
+        url: apiEndpoints.accountsChart
       })
   };
 
@@ -135,16 +176,220 @@ export function createYmApi(getIdToken: GetIdToken) {
         data: body,
         method: "POST",
         url: apiEndpoints.journalEntries(tenantId)
+      }),
+    getDrafts: (tenantId: string) =>
+      request<JournalDraftsResponse>({
+        method: "GET",
+        url: apiEndpoints.journalDrafts(tenantId)
+      })
+  };
+
+  const sync = {
+    start: (tenantId: string, idempotencyKey = crypto.randomUUID()) =>
+      request<SyncStartResponse>({
+        headers: { "Idempotency-Key": idempotencyKey },
+        method: "POST",
+        url: apiEndpoints.sync(tenantId)
+      }),
+    getStatus: (tenantId: string) =>
+      request<SyncStatusResponse>({
+        method: "GET",
+        url: apiEndpoints.syncStatus(tenantId)
+      })
+  };
+
+  const views = {
+    getMonthlySummary: (tenantId: string, ym: string) =>
+      request<MonthlySummaryResponse>({
+        method: "GET",
+        params: { ym },
+        url: apiEndpoints.monthlySummary(tenantId)
+      }),
+    getReceivables: (tenantId: string) =>
+      request<ReceivablesBoard>({
+        method: "GET",
+        url: apiEndpoints.receivables(tenantId)
+      }),
+    updateReceivable: (tenantId: string, entryId: string, body: UpdateReceivableRequest) =>
+      request<{ ok: true }>({
+        data: body,
+        method: "PATCH",
+        url: apiEndpoints.receivable(tenantId, entryId)
+      }),
+    getAccountBalances: (tenantId: string) =>
+      request<AccountBalancesResponse>({
+        method: "GET",
+        url: apiEndpoints.accountBalances(tenantId)
+      })
+  };
+
+  const reports = {
+    getPnl: (tenantId: string, params: { from: string; to: string }) =>
+      request<IncomeStatementResponse>({
+        method: "GET",
+        params,
+        url: apiEndpoints.reportPnl(tenantId)
+      }),
+    getBalanceSheet: (tenantId: string, asOf: string) =>
+      request<BalanceSheetResponse>({
+        method: "GET",
+        params: { asOf },
+        url: apiEndpoints.reportBalanceSheet(tenantId)
+      }),
+    getCashFlow: (tenantId: string, params: { from: string; to: string; method?: "indirect" }) =>
+      request<CashFlowResponse>({
+        method: "GET",
+        params,
+        url: apiEndpoints.reportCashFlow(tenantId)
+      }),
+    getTrialBalance: (tenantId: string, asOf: string) =>
+      request<TrialBalanceResponse>({
+        method: "GET",
+        params: { asOf },
+        url: apiEndpoints.reportTrialBalance(tenantId)
+      })
+  };
+
+  const fx = {
+    getUsdKrwRate: (date: string) =>
+      request<ExchangeRate>({
+        method: "GET",
+        params: { date },
+        url: apiEndpoints.fxUsdKrw
+      }),
+    getUsdKrwRates: (params: { from: string; to: string }) =>
+      request<ExchangeRatesResponse>({
+        method: "GET",
+        params,
+        url: apiEndpoints.fxUsdKrw
+      }),
+    revalue: (tenantId: string, asOf: string) =>
+      request<FxRevalueResponse>({
+        method: "POST",
+        params: { asOf },
+        url: apiEndpoints.fxRevalue(tenantId)
+      })
+  };
+
+  const tax = {
+    getCorporationProfile: (tenantId: string) =>
+      request<CorporationProfile>({
+        method: "GET",
+        url: apiEndpoints.corporationProfile(tenantId)
+      }),
+    upsertCorporationProfile: (tenantId: string, body: UpsertCorporationProfileRequest) =>
+      request<CorporationProfile>({
+        data: body,
+        method: "POST",
+        url: apiEndpoints.corporationProfile(tenantId)
+      }),
+    getUpcomingFilings: (tenantId: string) =>
+      request<FilingsUpcomingResponse>({
+        method: "GET",
+        url: apiEndpoints.filingsUpcoming(tenantId)
+      }),
+    getFilingDraft: (tenantId: string, filingId: string) =>
+      request<FilingDraftResponse>({
+        method: "GET",
+        url: apiEndpoints.filingDraft(tenantId, filingId)
+      }),
+    getFilingPenaltySimulation: (tenantId: string, filingId: string, asOf?: string) =>
+      request<PenaltySimulationResponse>({
+        method: "GET",
+        params: asOf ? { asOf } : undefined,
+        url: apiEndpoints.filingPenaltySimulation(tenantId, filingId)
+      }),
+    recomputeFiling: (tenantId: string, filingId: string) =>
+      request<FilingRecomputeResponse>({
+        method: "POST",
+        url: apiEndpoints.filingRecompute(tenantId, filingId)
+      }),
+    getPendingWithholding: (tenantId: string) =>
+      request<WithholdingPendingResponse>({
+        method: "GET",
+        url: apiEndpoints.withholdingPending(tenantId)
+      }),
+    fileWithholding: (tenantId: string, withholdingId: string) =>
+      request<{ id: string; status: "filed" | string }>({
+        method: "POST",
+        url: apiEndpoints.withholdingFile(tenantId, withholdingId)
+      }),
+    getTaxInvoices: (tenantId: string, params: { direction?: TaxInvoiceDirection; from: string; to: string }) =>
+      request<TaxInvoicesResponse>({
+        method: "GET",
+        params,
+        url: apiEndpoints.taxInvoices(tenantId)
+      }),
+    searchTaxLaw: (tenantId: string, body: SearchTaxLawRequest) =>
+      request<SearchTaxLawResponse>({
+        data: body,
+        method: "POST",
+        url: apiEndpoints.agentSearchTaxLaw(tenantId)
+      }),
+    findBenefits: (tenantId: string, body: FindBenefitsRequest) =>
+      request<FindBenefitsResponse>({
+        data: body,
+        method: "POST",
+        url: apiEndpoints.agentFindBenefits(tenantId)
+      })
+  };
+
+  const admin = {
+    getTaxRules: (params?: { asOf?: string; kind?: string }) =>
+      request<AdminTaxRulesResponse>({
+        method: "GET",
+        params,
+        url: apiEndpoints.adminTaxRules
+      }),
+    approveTaxRule: (id: string) =>
+      request<{ ruleId: string; status: string }>({
+        method: "POST",
+        url: apiEndpoints.adminTaxRuleApprove(id)
+      }),
+    getTaxRuleChangeLog: (id: string) =>
+      request<AdminTaxRuleChangeLogResponse>({
+        method: "GET",
+        url: apiEndpoints.adminTaxRuleChangeLog(id)
+      }),
+    getTaxLawSyncState: () =>
+      request<AdminTaxLawSyncStateResponse>({
+        method: "GET",
+        url: apiEndpoints.adminTaxLawSyncState
+      }),
+    runTaxLawSync: () =>
+      request<{ executionArn: string }>({
+        method: "POST",
+        url: apiEndpoints.adminTaxLawSyncRun
+      }),
+    getTaxRuleReviews: (status = "pending") =>
+      request<AdminTaxRuleReviewsResponse>({
+        method: "GET",
+        params: { status },
+        url: apiEndpoints.adminTaxRuleReviews
+      }),
+    resolveTaxRuleReview: (id: string, body: { decision: "approve" | "reject"; notes?: string }) =>
+      request<{ decision: "approve" | "reject"; id: string }>({
+        data: body,
+        method: "POST",
+        url: apiEndpoints.adminTaxRuleReviewResolve(id)
       })
   };
 
   return {
+    accounts,
+    admin,
     bankAccounts,
     bankConnections,
+    fx,
     health,
     identity,
     journal,
+    reports,
+    sync,
+    tax,
     tenants,
+    views,
+    getAccountsChart: accounts.getChart,
     getHealth: health.get,
     getMe: identity.getMe,
     getTenants: identity.getMyTenants,
@@ -153,7 +398,32 @@ export function createYmApi(getIdToken: GetIdToken) {
     createBankAccount: bankAccounts.create,
     getJournalEntries: journal.getEntries,
     classifyJournalEntry: journal.classify,
-    createJournalEntry: journal.createEntry
+    createJournalEntry: journal.createEntry,
+    getJournalDrafts: journal.getDrafts,
+    startSync: sync.start,
+    getSyncStatus: sync.getStatus,
+    getMonthlySummary: views.getMonthlySummary,
+    getReceivables: views.getReceivables,
+    updateReceivable: views.updateReceivable,
+    getAccountBalances: views.getAccountBalances,
+    getPnlReport: reports.getPnl,
+    getBalanceSheetReport: reports.getBalanceSheet,
+    getCashFlowReport: reports.getCashFlow,
+    getTrialBalanceReport: reports.getTrialBalance,
+    getUsdKrwRate: fx.getUsdKrwRate,
+    getUsdKrwRates: fx.getUsdKrwRates,
+    revalueFx: fx.revalue,
+    getCorporationProfile: tax.getCorporationProfile,
+    upsertCorporationProfile: tax.upsertCorporationProfile,
+    getUpcomingFilings: tax.getUpcomingFilings,
+    getFilingDraft: tax.getFilingDraft,
+    getFilingPenaltySimulation: tax.getFilingPenaltySimulation,
+    recomputeFiling: tax.recomputeFiling,
+    getPendingWithholding: tax.getPendingWithholding,
+    fileWithholding: tax.fileWithholding,
+    getTaxInvoices: tax.getTaxInvoices,
+    searchTaxLaw: tax.searchTaxLaw,
+    findBenefits: tax.findBenefits
   };
 }
 

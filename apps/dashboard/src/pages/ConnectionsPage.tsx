@@ -2,8 +2,12 @@ import {
 	Badge,
 	Button,
 	cn,
+	EmptyState,
 	Input,
 	Label,
+	Notice,
+	PageHeader,
+	PageShell,
 	Select,
 	SelectContent,
 	SelectItem,
@@ -67,6 +71,7 @@ export function ConnectionsPage() {
 	const [birthDate, setBirthDate] = useState("");
 	const [isConnecting, setIsConnecting] = useState(false);
 	const [isRegistering, setIsRegistering] = useState(false);
+	const [isSyncing, setIsSyncing] = useState(false);
 	const [connection, setConnection] = useState<BankConnectionResponse | null>(
 		null,
 	);
@@ -165,6 +170,25 @@ export function ConnectionsPage() {
 		}
 	}
 
+	async function handleStartSync() {
+		if (!selectedTenantId) {
+			return;
+		}
+
+		setIsSyncing(true);
+		setError(null);
+		setWarning(null);
+
+		try {
+			await api.startSync(selectedTenantId);
+			setWarning("수집 파이프라인을 시작했습니다. 처리 상태는 개요 화면에서 확인할 수 있습니다.");
+		} catch (syncError) {
+			setError(syncError instanceof Error ? syncError.message : "수집 파이프라인을 시작하지 못했습니다.");
+		} finally {
+			setIsSyncing(false);
+		}
+	}
+
 	function toggleAccount(accountNumber: string) {
 		setSelectedAccounts((current) =>
 			current.includes(accountNumber)
@@ -174,39 +198,29 @@ export function ConnectionsPage() {
 	}
 
 	return (
-		<div className="mx-auto max-w-6xl space-y-6 p-6 lg:p-8">
-			<section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-				<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-					<div>
-						<Badge variant="secondary">CODEF 은행 연동</Badge>
-						<h2 className="mt-3 text-2xl font-semibold tracking-normal">
-							계좌를 연결하고 모니터링 대상을 선택하세요
-						</h2>
-						<p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-							{selectedTenant?.displayName ?? "현재 워크스페이스"}에 은행 연결을
-							생성한 뒤, 응답으로 받은 계좌 중 자동 분개에 사용할 계좌를
-							등록합니다.
-						</p>
-					</div>
-					<div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-						<div className="mb-1 flex items-center gap-2 font-semibold text-slate-800">
+		<PageShell className="max-w-6xl">
+			<PageHeader
+				title="계좌 연결"
+				actions={
+					<div className="ym-panel p-3 text-xs leading-5 text-muted-foreground">
+						<div className="mb-1 flex items-center gap-2 font-semibold text-foreground">
 							<LockKeyhole className="size-4" aria-hidden="true" />
 							보안 안내
 						</div>
 						입력한 비밀번호는 거래내역 조회용 연결 생성에만 사용되며 평문으로
 						저장되지 않습니다.
 					</div>
-				</div>
-			</section>
+				}
+			/>
 
 			<div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
 				<form
-					className="space-y-5 rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
+					className="ym-surface space-y-5 p-6"
 					onSubmit={handleConnect}
 				>
 					<div>
 						<h3 className="font-semibold">은행 인증</h3>
-						<p className="mt-1 text-sm text-slate-500">
+						<p className="mt-1 text-sm text-muted-foreground">
 							선택한 은행의 인터넷뱅킹 ID/PW로 CODEF 연결을 시도합니다.
 							은행별 인증 정책에 따라 추가 검증이나 미지원 응답이 있을 수
 							있습니다.
@@ -267,25 +281,25 @@ export function ConnectionsPage() {
 								setBirthDate(event.target.value.replace(/\D/g, ""))
 							}
 						/>
-						<p className="text-xs text-slate-500">
+						<p className="text-xs text-muted-foreground">
 							추가 검증을 요구받을 때만 입력합니다.
 						</p>
 					</div>
 
 					{warning ? (
-						<div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+						<Notice tone="warning">
+							<div className="flex gap-2">
 							<AlertTriangle
 								className="mt-0.5 size-4 shrink-0"
 								aria-hidden="true"
 							/>
 							<span>{warning}</span>
-						</div>
+							</div>
+						</Notice>
 					) : null}
 
 					{error ? (
-						<div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-							{error}
-						</div>
+						<Notice tone="danger">{error}</Notice>
 					) : null}
 
 					<Button
@@ -302,11 +316,11 @@ export function ConnectionsPage() {
 					</Button>
 				</form>
 
-				<section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+				<section className="ym-surface space-y-4 p-6">
 					<div className="flex items-center justify-between gap-4">
 						<div>
 							<h3 className="font-semibold">발견된 계좌</h3>
-							<p className="mt-1 text-sm text-slate-500">
+							<p className="mt-1 text-sm text-muted-foreground">
 								등록할 계좌를 선택하면 이후 자동 수집 대상이 됩니다.
 							</p>
 						</div>
@@ -316,16 +330,9 @@ export function ConnectionsPage() {
 					</div>
 
 					{!connection ? (
-						<div className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-							<Landmark className="size-8 text-slate-400" aria-hidden="true" />
-							<p className="mt-3 font-medium text-slate-700">
-								은행 인증 후 계좌가 표시됩니다
-							</p>
-							<p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">
-								응답 계좌는 이 브라우저 상태에만 표시됩니다. 필요한 계좌를 바로
-								등록하세요.
-							</p>
-						</div>
+						<EmptyState icon={Landmark} title="은행 인증 후 계좌가 표시됩니다">
+							응답 계좌는 이 브라우저 상태에만 표시됩니다. 필요한 계좌를 바로 등록하세요.
+						</EmptyState>
 					) : (
 						<>
 							<div className="space-y-3">
@@ -351,17 +358,30 @@ export function ConnectionsPage() {
 								)}
 								선택 계좌 등록
 							</Button>
+							<Button
+								className="h-11 w-full"
+								disabled={isSyncing}
+								variant="outline"
+								onClick={handleStartSync}
+							>
+								{isSyncing ? (
+									<Loader2 className="size-4 animate-spin" aria-hidden="true" />
+								) : (
+									<RefreshCcw className="size-4" aria-hidden="true" />
+								)}
+								지금 수집 시작
+							</Button>
 						</>
 					)}
 
 					{registeredAccounts.length > 0 ? (
-						<div className="border-t border-slate-100 pt-4">
+						<div className="border-t pt-4">
 							<h4 className="text-sm font-semibold">이번 세션에 등록한 계좌</h4>
 							<div className="mt-3 space-y-2">
 								{registeredAccounts.map((account) => (
 									<div
 										key={account.id}
-										className="flex items-center justify-between rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+									className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200"
 									>
 										<span className="font-medium number-tabular">
 											{account.accountNumber}
@@ -374,7 +394,7 @@ export function ConnectionsPage() {
 					) : null}
 				</section>
 			</div>
-		</div>
+		</PageShell>
 	);
 }
 
@@ -394,8 +414,8 @@ function AccountRow({
 			className={cn(
 				"flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-4 transition-colors",
 				checked
-					? "border-primary bg-indigo-50"
-					: "border-slate-200 bg-white hover:border-slate-300",
+					? "border-primary bg-accent"
+					: "border-border bg-card hover:border-primary/50",
 			)}
 		>
 			<div className="flex min-w-0 items-center gap-3">
@@ -407,13 +427,13 @@ function AccountRow({
 				/>
 				<div className="min-w-0">
 					<p className="truncate font-semibold">{account.accountName}</p>
-					<p className="mt-1 text-sm text-slate-500 number-tabular">
+					<p className="mt-1 text-sm text-muted-foreground number-tabular">
 						{account.accountNumber}
 					</p>
 				</div>
 			</div>
 			<div className="shrink-0 text-right">
-				<p className="text-xs text-slate-500">잔액</p>
+				<p className="text-xs text-muted-foreground">잔액</p>
 				<p className="font-semibold number-tabular">
 					{Number.isFinite(balance) ? formatCurrency(balance) : account.balance}
 				</p>

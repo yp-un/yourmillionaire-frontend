@@ -34,11 +34,11 @@ export function FullPageState({
   title: string;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7fafc] p-6 text-[#111827]">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+    <main className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
+      <div className="ym-surface w-full max-w-md p-8 text-center">
         <div className="mx-auto mb-5 size-10 animate-pulse rounded-full bg-primary/15" />
         <h1 className="text-xl font-semibold">{title}</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500">{body}</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
         {action ? (
           <Button className="mt-6" onClick={action.onClick}>
             {action.label}

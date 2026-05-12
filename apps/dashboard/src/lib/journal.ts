@@ -1,6 +1,7 @@
 import type { JournalEntry, JournalLine } from "../api/types";
 
 const bankAccountCodes = new Set(["1001", "1002", "1003", "1010", "1020"]);
+export type AccountLabelMap = Record<string, string>;
 
 export const accountNames: Record<string, string> = {
   "1001": "현금",
@@ -27,16 +28,16 @@ export const accountNames: Record<string, string> = {
   "5601": "세금과공과"
 };
 
-export function formatKrw(value: number) {
-  return new Intl.NumberFormat("ko-KR").format(Math.round(value));
+export function formatKrw(value: number | string | null | undefined) {
+  return new Intl.NumberFormat("ko-KR").format(Math.round(toFiniteNumber(value)));
 }
 
-export function formatCurrency(value: number) {
+export function formatCurrency(value: number | string | null | undefined) {
   return `₩ ${formatKrw(value)}`;
 }
 
-export function getAccountLabel(accountCode: string) {
-  return `${accountCode} ${accountNames[accountCode] ?? "미지정 계정"}`;
+export function getAccountLabel(accountCode: string, accountLabels?: AccountLabelMap) {
+  return `${accountCode} ${accountLabels?.[accountCode] ?? accountNames[accountCode] ?? "미지정 계정"}`;
 }
 
 export function getEntryAmount(entry: JournalEntry) {
@@ -46,10 +47,10 @@ export function getEntryAmount(entry: JournalEntry) {
 export function getEntryMovement(entry: JournalEntry): "expense" | "income" | "neutral" {
   const bankDebit = entry.lines
     .filter((line) => bankAccountCodes.has(line.accountCode))
-    .reduce((total, line) => total + line.debit, 0);
+    .reduce((total, line) => total + toFiniteNumber(line.debit), 0);
   const bankCredit = entry.lines
     .filter((line) => bankAccountCodes.has(line.accountCode))
-    .reduce((total, line) => total + line.credit, 0);
+    .reduce((total, line) => total + toFiniteNumber(line.credit), 0);
 
   if (bankDebit > bankCredit) {
     return "income";
@@ -86,12 +87,12 @@ export function summarizeEntries(entries: JournalEntry[]) {
   );
 }
 
-export function formatJournalLines(entry: JournalEntry) {
-  const debitLines = entry.lines.filter((line) => line.debit > 0).map((line) => formatLine(line, "debit"));
-  const creditLines = entry.lines.filter((line) => line.credit > 0).map((line) => formatLine(line, "credit"));
+export function formatJournalLines(entry: JournalEntry, accountLabels?: AccountLabelMap) {
+  const debitLines = entry.lines.filter((line) => toFiniteNumber(line.debit) > 0).map((line) => formatLine(line, "debit", accountLabels));
+  const creditLines = entry.lines.filter((line) => toFiniteNumber(line.credit) > 0).map((line) => formatLine(line, "credit", accountLabels));
 
   if (debitLines.length === 0 || creditLines.length === 0) {
-    return entry.lines.map((line) => getAccountLabel(line.accountCode)).join(" / ");
+    return entry.lines.map((line) => getAccountLabel(line.accountCode, accountLabels)).join(" / ");
   }
 
   return `${debitLines.join(" + ")} → ${creditLines.join(" + ")}`;
@@ -120,12 +121,25 @@ export function getRelativeMonthRange(monthOffset: number) {
   };
 }
 
-function formatLine(line: JournalLine, side: "credit" | "debit") {
-  return `${getAccountLabel(line.accountCode)} ${formatKrw(line[side])}원`;
+function formatLine(line: JournalLine, side: "credit" | "debit", accountLabels?: AccountLabelMap) {
+  return `${getAccountLabel(line.accountCode, accountLabels)} ${formatKrw(line[side])}원`;
 }
 
 function sumBy(lines: JournalLine[], key: "credit" | "debit") {
-  return lines.reduce((total, line) => total + line[key], 0);
+  return lines.reduce((total, line) => total + toFiniteNumber(line[key]), 0);
+}
+
+function toFiniteNumber(value: number | string | null | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/,/g, "").trim());
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
 }
 
 function getSeoulDateParts(date: Date) {

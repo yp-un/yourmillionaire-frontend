@@ -1,32 +1,23 @@
 import { useState } from "react";
-import { NavLink, Outlet, useMatches } from "react-router";
-import { Link2, ReceiptText } from "lucide-react";
+import { NavLink, Outlet } from "react-router";
+import { BarChart3, FileBarChart, Link2, ReceiptText, ScrollText } from "lucide-react";
 
 import { cn } from "@millionaire/ui";
 
 import { SideNav } from "../layout/SideNav";
-import type { View } from "../types";
 import { useWorkspace } from "../workspace/WorkspaceProvider";
 import { FullPageState } from "./RequireAuth";
 
-type DashboardRouteHandle = {
-  view: View;
-  title: string;
-};
-
-const defaultRouteHandle = {
-  view: "connections",
-  title: "계좌 연결"
-} satisfies DashboardRouteHandle;
-
 const mobileNavItems = [
+  { label: "개요", path: "/overview", icon: BarChart3 },
   { label: "계좌 연결", path: "/connections", icon: Link2 },
-  { label: "분개 조회", path: "/transactions", icon: ReceiptText }
+  { label: "분개", path: "/transactions", icon: ReceiptText },
+  { label: "리포트", path: "/reports", icon: FileBarChart },
+  { label: "세무", path: "/tax", icon: ScrollText }
 ];
 
 export function AppLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const routeHandle = useActiveDashboardRoute();
   const workspace = useWorkspace();
 
   if (workspace.status === "loading") {
@@ -44,7 +35,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7fafc] text-[#1b1b23]">
+    <div className="min-h-screen bg-background text-foreground">
       <SideNav
         isOpen={isSidebarOpen}
         onSidebarToggle={() => setIsSidebarOpen((value) => !value)}
@@ -59,7 +50,7 @@ export function AppLayout() {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-2 border-t border-slate-100 bg-white md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-sidebar-border bg-sidebar md:hidden">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
 
@@ -69,7 +60,7 @@ export function AppLayout() {
               to={item.path}
               className={({ isActive }) =>
                 cn(
-                  "flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium text-slate-500",
+                  "flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium text-muted-foreground",
                   isActive && "text-primary"
                 )
               }
@@ -82,26 +73,4 @@ export function AppLayout() {
       </nav>
     </div>
   );
-}
-
-function useActiveDashboardRoute() {
-  const matches = useMatches();
-
-  for (let index = matches.length - 1; index >= 0; index -= 1) {
-    const handle = matches[index]?.handle;
-
-    if (isDashboardRouteHandle(handle)) {
-      return handle;
-    }
-  }
-
-  return defaultRouteHandle;
-}
-
-function isDashboardRouteHandle(handle: unknown): handle is DashboardRouteHandle {
-  if (!handle || typeof handle !== "object") {
-    return false;
-  }
-
-  return "view" in handle && "title" in handle;
 }

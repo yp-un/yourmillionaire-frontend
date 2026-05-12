@@ -1,1 +1,1 @@
-export type View = "connections" | "transactions";
+export type View = "connections" | "overview" | "reports" | "tax" | "transactions";

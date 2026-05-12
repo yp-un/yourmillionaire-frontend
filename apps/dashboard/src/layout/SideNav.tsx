@@ -1,4 +1,4 @@
-import { ChevronLeft, Landmark, Link2, LogOut, ReceiptText } from "lucide-react";
+import { BarChart3, ChevronLeft, FileBarChart, Landmark, Link2, LogOut, ReceiptText, ScrollText } from "lucide-react";
 import { NavLink } from "react-router";
 
 import {
@@ -23,8 +23,11 @@ type SideNavProps = {
 };
 
 const navItems = [
+  { id: "overview", label: "개요", path: "/overview", icon: BarChart3 },
   { id: "connections", label: "계좌 연결", path: "/connections", icon: Link2 },
-  { id: "transactions", label: "분개 조회", path: "/transactions", icon: ReceiptText }
+  { id: "transactions", label: "분개 조회", path: "/transactions", icon: ReceiptText },
+  { id: "reports", label: "재무제표", path: "/reports", icon: FileBarChart },
+  { id: "tax", label: "세무 관리", path: "/tax", icon: ScrollText }
 ];
 
 export function SideNav({ isOpen, onSidebarToggle }: SideNavProps) {
@@ -35,17 +38,17 @@ export function SideNav({ isOpen, onSidebarToggle }: SideNavProps) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-slate-100 bg-white p-4 shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-[width] duration-200 md:flex",
+        "fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar p-4 transition-[width] duration-200 md:flex",
         isOpen ? "w-64" : "w-20"
       )}
     >
       <div className={cn("mb-8 flex items-center gap-3 px-2", !isOpen && "justify-center px-0")}>
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-white shadow-lg">
+        <div className="flex size-10 items-center justify-center rounded-full bg-primary text-white">
           <Landmark className="size-5" aria-hidden="true" />
         </div>
         <div className={cn(!isOpen && "hidden")}>
-          <h1 className="text-xl font-black tracking-normal text-primary">YourMillionaire</h1>
-          <p className="text-xs font-medium text-slate-400">Bank Journal Beta</p>
+          <h1 className="text-xl font-semibold tracking-normal text-primary">YourMillionaire</h1>
+          <p className="text-xs font-medium text-muted-foreground">Ledger Agent</p>
         </div>
       </div>
 
@@ -60,9 +63,9 @@ export function SideNav({ isOpen, onSidebarToggle }: SideNavProps) {
               end={item.path === "/"}
               className={({ isActive }) =>
                 cn(
-                  "flex h-12 w-full items-center gap-3 rounded-lg px-4 text-left font-medium text-slate-500 transition-colors hover:bg-slate-50",
+                  "flex h-12 w-full items-center gap-3 rounded-md px-4 text-left font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   !isOpen && "justify-center px-0",
-                  isActive && "bg-indigo-50 font-semibold text-primary"
+                  isActive && "bg-sidebar-accent font-semibold text-primary"
                 )
               }
               aria-label={item.label}
@@ -75,27 +78,27 @@ export function SideNav({ isOpen, onSidebarToggle }: SideNavProps) {
         })}
       </nav>
 
-      <div className="space-y-3 border-t border-slate-100 pt-4">
+      <div className="space-y-3 border-t border-sidebar-border pt-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
               variant="ghost"
               className={cn(
-                "h-auto w-full justify-start gap-3 rounded-lg bg-slate-50 p-3 text-left hover:bg-slate-100",
-                !isOpen && "justify-center bg-transparent p-0 hover:bg-slate-50"
+                "h-auto w-full justify-start gap-3 rounded-lg bg-muted p-3 text-left text-foreground hover:bg-sidebar-accent",
+                !isOpen && "justify-center bg-transparent p-0 hover:bg-sidebar-accent"
               )}
               aria-label="프로필 메뉴"
               title={!isOpen ? me?.email : undefined}
             >
               <span
-                className="flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-indigo-50 text-sm font-bold text-primary"
+                className="flex size-9 shrink-0 items-center justify-center rounded-full border border-sidebar-border bg-primary text-sm font-bold text-white"
               >
                 {userInitial}
               </span>
               <span className={cn("min-w-0", !isOpen && "hidden")}>
-                <span className="block truncate text-sm font-medium text-slate-700">{me?.email ?? "사용자"}</span>
-                <span className="block text-xs text-slate-400">프로필</span>
+                <span className="block truncate text-sm font-medium text-foreground">{me?.email ?? "사용자"}</span>
+                <span className="block text-xs text-muted-foreground">프로필</span>
               </span>
             </Button>
           </DropdownMenuTrigger>
@@ -136,7 +139,7 @@ export function SideNav({ isOpen, onSidebarToggle }: SideNavProps) {
           variant="ghost"
           onClick={onSidebarToggle}
           className={cn(
-            "h-12 w-full justify-start gap-3 rounded-lg px-4 text-left font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+            "h-12 w-full justify-start gap-3 rounded-lg px-4 text-left font-medium text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             !isOpen && "justify-center px-0"
           )}
           aria-label={isOpen ? "사이드바 접기" : "사이드바 펼치기"}
