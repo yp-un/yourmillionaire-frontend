@@ -22,6 +22,8 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 
+import { HeroLedgerCanvas } from "./hero-ledger-canvas";
+
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL!;
 
 const workflow = [
@@ -65,26 +67,34 @@ const anxieties = [
 
 export default function Home() {
 	return (
-		<main className="min-h-screen bg-white">
-			<section className="relative isolate overflow-hidden border-b">
+		<main className="min-h-screen bg-background text-foreground">
+			<section className="relative isolate overflow-hidden border-b border-border">
 				<Image
 					src="/hero-dashboard.png"
 					alt="YourMillionaire dashboard preview"
 					fill
 					priority
 					sizes="100vw"
-					className="absolute inset-0 -z-20 object-cover object-center opacity-35"
+					className="absolute inset-0 z-0 object-cover object-center opacity-25 dark:opacity-20"
 				/>
-				<div className="absolute inset-0 -z-10 bg-white/70" />
+				<HeroLedgerCanvas />
+				<div
+					className="pointer-events-none absolute inset-0 z-[2]"
+					style={{
+						background:
+							"linear-gradient(90deg, color-mix(in oklab, var(--background) 97%, transparent) 0%, color-mix(in oklab, var(--background) 88%, transparent) 42%, color-mix(in oklab, var(--background) 46%, transparent) 75%, color-mix(in oklab, var(--background) 84%, transparent) 100%)",
+					}}
+				/>
+				<div className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] h-28 bg-gradient-to-t from-background to-transparent" />
 
-				<header className="container flex h-16 items-center justify-between">
+				<header className="container relative z-20 flex h-16 items-center justify-between">
 					<Link href="/" className="flex items-center gap-2 font-semibold">
 						<span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
 							<Landmark className="size-4" aria-hidden="true" />
 						</span>
 						<span>YourMillionaire</span>
 					</Link>
-					<nav className="hidden items-center gap-6 text-sm text-slate-600 md:flex">
+					<nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
 						<Link href="#persona">대상 사용자</Link>
 						<Link href="#workflow">사용 흐름</Link>
 						<Link href="#security">보안</Link>
@@ -97,15 +107,15 @@ export default function Home() {
 					</Button>
 				</header>
 
-				<div className="container flex min-h-[76svh] flex-col justify-center pb-14 pt-12">
+				<div className="container relative z-10 flex min-h-[76svh] flex-col justify-center pb-14 pt-12">
 					<div className="max-w-2xl">
 						<Badge variant="secondary" className="mb-5">
 							청년창업자를 위한 회계 정리 베타
 						</Badge>
-						<h1 className="text-balance text-5xl font-semibold tracking-normal text-slate-950 sm:text-6xl">
+						<h1 className="text-balance text-5xl font-semibold tracking-normal text-foreground sm:text-6xl">
 							네가 결제만 하면, 정리는 끝나 있어야 하니까
 						</h1>
-						<p className="mt-5 max-w-xl text-balance text-lg leading-8 text-slate-700">
+						<p className="mt-5 max-w-xl text-balance text-lg leading-8 text-muted-foreground">
 							YourMillionaire는 회계 소프트웨어를 처음 보는 창업자가 은행 계좌를
 							연결하고, 수집된 거래가 분개로 정리되는 과정을 확인하는
 							대시보드입니다.
@@ -134,7 +144,7 @@ export default function Home() {
 					<h2 className="mt-4 text-3xl font-semibold tracking-normal">
 						회계 SW를 한 번도 써본 적 없는 공동창업자
 					</h2>
-					<p className="mt-3 text-slate-600">
+					<p className="mt-3 text-muted-foreground">
 						민지는 Figma, Notion, Slack은 익숙하지만 회계 화면은 낯섭니다. 법인
 						통장과 법인카드는 있고, 매달 클라우드 비용과 툴 구독료는 나가지만
 						재무제표는 읽을 줄 모릅니다.
@@ -143,7 +153,7 @@ export default function Home() {
 				<div className="grid gap-3">
 					{anxieties.map((item) => (
 						<Card key={item}>
-							<CardContent className="flex items-start gap-3 p-4 text-sm leading-6 text-slate-700">
+							<CardContent className="flex items-start gap-3 p-4 text-sm leading-6 text-muted-foreground">
 								<FileText
 									className="mt-0.5 size-4 shrink-0 text-primary"
 									aria-hidden="true"
@@ -161,7 +171,7 @@ export default function Home() {
 					<h2 className="mt-4 text-3xl font-semibold tracking-normal">
 						회계 용어보다 먼저 보여야 하는 것
 					</h2>
-					<p className="mt-3 text-slate-600">
+					<p className="mt-3 text-muted-foreground">
 						현재 대시보드는 계좌를 연결하고, 수집된 거래가 어떻게 분개로
 						정리됐는지 확인하는 흐름에 집중합니다.
 					</p>
@@ -178,7 +188,7 @@ export default function Home() {
 									</div>
 									<CardTitle>{item.title}</CardTitle>
 								</CardHeader>
-								<CardContent className="text-sm leading-6 text-slate-600">
+								<CardContent className="text-sm leading-6 text-muted-foreground">
 									{item.body}
 								</CardContent>
 							</Card>
@@ -187,14 +197,14 @@ export default function Home() {
 				</div>
 			</section>
 
-			<section id="features" className="border-y bg-slate-50">
+			<section id="features" className="border-y border-border bg-muted/40">
 				<div className="container grid gap-8 py-16 lg:grid-cols-[1fr_0.9fr]">
 					<div>
 						<Badge variant="secondary">Available Now</Badge>
 						<h2 className="mt-4 text-3xl font-semibold tracking-normal">
 							민지가 실제로 누르게 될 기능
 						</h2>
-						<p className="mt-3 max-w-2xl text-slate-600">
+						<p className="mt-3 max-w-2xl text-muted-foreground">
 							복잡한 회계 메뉴를 늘어놓지 않고, 지금 필요한 두 가지 작업에
 							집중합니다. 계좌를 등록하고, 정리된 분개를 확인합니다.
 						</p>
@@ -203,7 +213,7 @@ export default function Home() {
 						{currentFeatures.map((item) => (
 							<div
 								key={item}
-								className="flex items-center gap-3 rounded-lg border bg-white p-3 text-sm"
+								className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground"
 							>
 								<CheckCircle2
 									className="size-4 text-primary"
@@ -228,7 +238,7 @@ export default function Home() {
 						/>
 						<CardTitle>은행 인증은 연결에만 사용</CardTitle>
 					</CardHeader>
-					<CardContent className="text-sm leading-6 text-slate-600">
+					<CardContent className="text-sm leading-6 text-muted-foreground">
 						은행 비밀번호는 CODEF 연결 생성에만 사용되며, 프론트엔드 화면에는
 						연결 결과로 받은 계좌 목록만 표시합니다.
 					</CardContent>
@@ -241,7 +251,7 @@ export default function Home() {
 						/>
 						<CardTitle>정리는 파이프라인 이후 표시</CardTitle>
 					</CardHeader>
-					<CardContent className="space-y-2 text-sm leading-6 text-slate-600">
+					<CardContent className="space-y-2 text-sm leading-6 text-muted-foreground">
 						{notes.map((note) => (
 							<p key={note}>{note}</p>
 						))}
@@ -250,7 +260,7 @@ export default function Home() {
 			</section>
 
 			<Separator />
-			<footer className="container flex flex-col gap-3 py-8 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+			<footer className="container flex flex-col gap-3 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
 				<span>© 2026 YourMillionaire</span>
 				<span className="flex items-center gap-2">
 					<BadgeCheck className="size-4" aria-hidden="true" />
