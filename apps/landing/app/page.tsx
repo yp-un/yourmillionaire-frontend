@@ -207,10 +207,10 @@ export default function Home() {
 			</Reveal>
 
 			<Reveal>
-				<section id="features" className="border-y border-border bg-muted/40">
+				<section id="features" className="container">
 					<div className="container grid gap-8 py-16 lg:grid-cols-[1fr_0.9fr]">
 						<div>
-							<Badge variant="secondary">Available Now</Badge>
+							<Badge variant="outline">Available Now</Badge>
 							<h2 className="mt-4 text-3xl font-semibold tracking-normal">
 								창업자가 바로 쓰게 될 기능
 							</h2>
