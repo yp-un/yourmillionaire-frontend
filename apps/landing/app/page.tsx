@@ -10,11 +10,7 @@ import {
 import {
 	ArrowRight,
 	BadgeCheck,
-	CalendarClock,
 	CheckCircle2,
-	FileText,
-	Landmark,
-	LockKeyhole,
 	ReceiptText,
 	ShieldCheck,
 	WalletCards,
@@ -23,6 +19,12 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { HeroLedgerCanvas } from "./hero-ledger-canvas";
+import {
+	HeroMotion,
+	Reveal,
+	StaggerGroup,
+	StaggerItem,
+} from "./landing-motion";
 
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL!;
 
@@ -53,16 +55,10 @@ const currentFeatures = [
 	"회계 용어보다 거래 내용과 금액을 중심으로 표시",
 ];
 
-const notes = [
-	"계좌 등록 직후에는 아직 표시할 분개가 없을 수 있습니다.",
-	"거래 수집과 분류는 백엔드 파이프라인이 실행된 뒤 반영됩니다.",
-	"현재 대시보드는 계좌 연결과 분개 확인에 집중합니다.",
-];
-
 const anxieties = [
-	"국세청 문자나 가산세가 무섭습니다.",
-	"이 지출이 비용 처리되는지 매번 헷갈립니다.",
-	"재무제표보다 통장 잔고가 먼저 눈에 들어옵니다.",
+	"회계 프로그램은 열어봤는데 어디부터 봐야 하는지 모르겠어요.",
+	"세무사님이 보내준 자료를 봐도 결국 통장 잔고부터 확인하게 됩니다.",
+	"클라우드 비용이나 구독료는 계속 나가는데 회계 처리는 제대로 되는 건지 불안해요.",
 ];
 
 export default function Home() {
@@ -111,7 +107,7 @@ export default function Home() {
 				</header>
 
 				<div className="container relative z-10 flex min-h-[76svh] flex-col justify-center pb-14 pt-12">
-					<div className="max-w-2xl">
+					<HeroMotion className="max-w-2xl">
 						<Badge variant="secondary" className="mb-5">
 							청년창업자를 위한 회계 정리
 						</Badge>
@@ -134,134 +130,111 @@ export default function Home() {
 								<Link href="#persona">왜 필요한지 보기</Link>
 							</Button>
 						</div>
-					</div>
+					</HeroMotion>
 				</div>
 			</section>
 
-			<section
-				id="persona"
-				className="container grid gap-8 py-16 lg:grid-cols-[0.9fr_1.1fr]"
-			>
-				<div>
-					<Badge variant="outline">Persona</Badge>
-					<h2 className="mt-4 text-3xl font-semibold tracking-normal">
-						회계 소프트웨어가 낯선 창업자
-					</h2>
-					<p className="mt-3 text-muted-foreground">
-						민지는 Figma, Notion, Slack은 익숙하지만 회계 화면은 낯섭니다. 법인
-						계좌와 법인카드는 이미 쓰고 있고, 매달 클라우드 비용과 툴 구독료는
-						나가지만
-						재무제표는 읽을 줄 모릅니다.
-					</p>
-				</div>
-				<div className="grid gap-3">
-					{anxieties.map((item) => (
-						<Card key={item}>
-							<CardContent className="flex items-start gap-3 p-4 text-sm leading-6 text-muted-foreground">
-								<FileText
-									className="mt-0.5 size-4 shrink-0 text-primary"
-									aria-hidden="true"
-								/>
-								{item}
-							</CardContent>
-						</Card>
-					))}
-				</div>
-			</section>
-
-			<section id="workflow" className="container py-16">
-				<div className="max-w-2xl">
-					<Badge variant="outline">Dashboard Flow</Badge>
-					<h2 className="mt-4 text-3xl font-semibold tracking-normal">
-						회계 용어보다 먼저 보여야 할 정보
-					</h2>
-					<p className="mt-3 text-muted-foreground">
-						현재 대시보드는 계좌를 연결하고, 자동으로 수집된 거래가 어떻게
-						분개로 정리됐는지 확인하는 흐름에 집중합니다.
-					</p>
-				</div>
-
-				<div className="mt-8 grid gap-4 md:grid-cols-3">
-					{workflow.map((item) => {
-						const Icon = item.icon;
-						return (
-							<Card key={item.title}>
-								<CardHeader>
-									<div className="mb-3 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-										<Icon className="size-5" aria-hidden="true" />
-									</div>
-									<CardTitle>{item.title}</CardTitle>
-								</CardHeader>
-								<CardContent className="text-sm leading-6 text-muted-foreground">
-									{item.body}
-								</CardContent>
-							</Card>
-						);
-					})}
-				</div>
-			</section>
-
-			<section id="features" className="border-y border-border bg-muted/40">
-				<div className="container grid gap-8 py-16 lg:grid-cols-[1fr_0.9fr]">
+			<Reveal>
+				<section
+					id="persona"
+					className="container grid gap-8 py-16 lg:grid-cols-[0.9fr_1.1fr]"
+				>
 					<div>
-						<Badge variant="secondary">Available Now</Badge>
+						<Badge variant="outline">Persona</Badge>
 						<h2 className="mt-4 text-3xl font-semibold tracking-normal">
-							창업자가 바로 쓰게 될 기능
+							회계 소프트웨어가 낯선 창업자
 						</h2>
-						<p className="mt-3 max-w-2xl text-muted-foreground">
-							복잡한 회계 메뉴를 늘어놓지 않고, 지금 필요한 두 가지 작업에
-							집중합니다. 계좌를 등록하고, 정리된 분개를 확인합니다.
+						<p className="mt-3 text-muted-foreground">
+							협업 툴에는 익숙하지만 회계 소프트웨어는 아직 낯선 창업자입니다.
+							법인 계좌와 법인카드는 이미 사용 중이고, 매달 클라우드 비용과
+							구독료도 빠져나가지만 회계 화면과 재무 용어는 여전히 어렵게
+							느껴집니다.
 						</p>
 					</div>
-					<div className="grid gap-2">
-						{currentFeatures.map((item) => (
-							<div
-								key={item}
-								className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground"
-							>
-								<CheckCircle2
-									className="size-4 text-primary"
-									aria-hidden="true"
-								/>
-								{item}
-							</div>
-						))}
-					</div>
-				</div>
-			</section>
+					<StaggerGroup className="space-y-3">
+						{anxieties.map((item, index) => (
+							<StaggerItem key={item}>
+								<div className="rounded-xl border border-border/70 bg-muted/30 p-4">
+									<div className="flex items-center gap-2 text-xs text-muted-foreground">
+										<div className="size-1.5 rounded-full bg-primary" />
+										초기 창업자 인터뷰
+									</div>
 
-			<section
-				id="security"
-				className="container grid gap-6 py-16 md:grid-cols-2"
-			>
-				<Card>
-					<CardHeader>
-						<LockKeyhole
-							className="mb-3 size-6 text-primary"
-							aria-hidden="true"
-						/>
-						<CardTitle>은행 인증은 연결에만 사용</CardTitle>
-					</CardHeader>
-					<CardContent className="text-sm leading-6 text-muted-foreground">
-						은행 비밀번호는 CODEF 연결 생성에만 사용되며, 프론트엔드 화면에는
-						연결 결과로 받은 계좌 목록만 표시합니다.
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<CalendarClock
-							className="mb-3 size-6 text-primary"
-							aria-hidden="true"
-						/>
-						<CardTitle>정리는 파이프라인 이후 표시</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-2 text-sm leading-6 text-muted-foreground">
-						{notes.map((note) => (
-							<p key={note}>{note}</p>
+									<p className="mt-3 text-sm leading-7 text-foreground">
+										“{item}”
+									</p>
+								</div>
+							</StaggerItem>
 						))}
-					</CardContent>
-				</Card>
-			</section>
+					</StaggerGroup>
+				</section>
+			</Reveal>
+
+			<Reveal>
+				<section id="workflow" className="container py-16">
+					<div className="max-w-2xl">
+						<Badge variant="outline">Dashboard Flow</Badge>
+						<h2 className="mt-4 text-3xl font-semibold tracking-normal">
+							회계 용어보다 먼저 보여야 할 정보
+						</h2>
+						<p className="mt-3 text-muted-foreground">
+							현재 대시보드는 계좌를 연결하고, 자동으로 수집된 거래가 어떻게
+							분개로 정리됐는지 확인하는 흐름에 집중합니다.
+						</p>
+					</div>
+
+					<StaggerGroup className="mt-8 grid gap-4 md:grid-cols-3">
+						{workflow.map((item) => {
+							const Icon = item.icon;
+							return (
+								<StaggerItem key={item.title}>
+									<Card>
+										<CardHeader>
+											<div className="mb-3 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+												<Icon className="size-5" aria-hidden="true" />
+											</div>
+											<CardTitle>{item.title}</CardTitle>
+										</CardHeader>
+										<CardContent className="text-sm leading-6 text-muted-foreground">
+											{item.body}
+										</CardContent>
+									</Card>
+								</StaggerItem>
+							);
+						})}
+					</StaggerGroup>
+				</section>
+			</Reveal>
+
+			<Reveal>
+				<section id="features" className="border-y border-border bg-muted/40">
+					<div className="container grid gap-8 py-16 lg:grid-cols-[1fr_0.9fr]">
+						<div>
+							<Badge variant="secondary">Available Now</Badge>
+							<h2 className="mt-4 text-3xl font-semibold tracking-normal">
+								창업자가 바로 쓰게 될 기능
+							</h2>
+							<p className="mt-3 max-w-2xl text-muted-foreground">
+								복잡한 회계 메뉴를 늘어놓지 않고, 지금 필요한 두 가지 작업에
+								집중합니다. 계좌를 등록하고, 정리된 분개를 확인합니다.
+							</p>
+						</div>
+						<StaggerGroup className="grid gap-2">
+							{currentFeatures.map((item) => (
+								<StaggerItem key={item}>
+									<div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground">
+										<CheckCircle2
+											className="size-4 text-primary"
+											aria-hidden="true"
+										/>
+										{item}
+									</div>
+								</StaggerItem>
+							))}
+						</StaggerGroup>
+					</div>
+				</section>
+			</Reveal>
 
 			<Separator />
 			<footer className="container flex flex-col gap-3 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
