@@ -443,6 +443,60 @@ export type FxRevalueResponse = {
   [key: string]: unknown;
 };
 
+export type FxAccountSource = "codef" | "manual";
+
+export type FxAccount = {
+  accountId: string;
+  source: FxAccountSource;
+  organization: string;
+  accountNumber: string;
+  currency: "USD" | string;
+  bankLabel: string | null;
+  balanceFcy: number | null;
+  balanceKrwToday: number | null;
+  lastSyncedAt: string | null;
+};
+
+export type FxAccountsResponse = {
+  accounts: FxAccount[];
+};
+
+export type CreateFxAccountRequest = {
+  currency: "USD";
+  balance: number;
+  bankLabel?: string;
+};
+
+export type UpdateFxAccountBalanceRequest = {
+  balance: number;
+};
+
+export type FxStrategyScenario =
+  | "convert_now_check"
+  | "exposure_summary"
+  | "monthly_outlook";
+
+export type FxStrategyEvent = {
+  type: string;
+  chunk?: string;
+  durationMs?: number;
+  input?: unknown;
+  keys?: string[];
+  metadata?: Record<string, unknown>;
+  name?: string;
+  reason?: string;
+  recoverable?: boolean;
+  runId?: string;
+  scenario?: FxStrategyScenario | string;
+  summary?: string;
+  tokens?: {
+    input?: number;
+    output?: number;
+  };
+  toolCalls?: number;
+  [key: string]: unknown;
+};
+
 export type CorporationProfile = {
   tenantId: string;
   foundedOn?: string | null;

@@ -13,6 +13,7 @@ import {
 import {
 	BarChart3,
 	ChevronLeft,
+	DollarSign,
 	FileBarChart,
 	Landmark,
 	Link2,
@@ -40,6 +41,7 @@ const navItems = [
 		icon: ReceiptText,
 	},
 	{ id: "reports", label: "재무제표", path: "/reports", icon: FileBarChart },
+	{ id: "fx", label: "외환 관리", path: "/fx", icon: DollarSign },
 	{ id: "tax", label: "세무 관리", path: "/tax", icon: ScrollText },
 ];
 

@@ -23,6 +23,12 @@ export const apiEndpoints = {
   reportTrialBalance: (tenantId: string) => `/tenants/${tenantId}/reports/trial-balance`,
   fxUsdKrw: "/fx/rates/usd-krw",
   fxRevalue: (tenantId: string) => `/tenants/${tenantId}/fx/revalue`,
+  fxAccounts: (tenantId: string) => `/tenants/${tenantId}/fx/accounts`,
+  fxAccount: (tenantId: string, accountId: string) =>
+    `/tenants/${tenantId}/fx/accounts/${accountId}`,
+  fxAccountBalance: (tenantId: string, accountId: string) =>
+    `/tenants/${tenantId}/fx/accounts/${accountId}/balance`,
+  fxStrategy: (tenantId: string) => `/tenants/${tenantId}/fx/strategy`,
   corporationProfile: (tenantId: string) => `/tenants/${tenantId}/corporation-profile`,
   filingsUpcoming: (tenantId: string) => `/tenants/${tenantId}/filings/upcoming`,
   filingDraft: (tenantId: string, filingId: string) => `/tenants/${tenantId}/filings/${filingId}/draft`,

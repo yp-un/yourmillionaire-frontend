@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router";
 
 import { CallbackPage } from "../pages/CallbackPage";
 import { ConnectionsPage } from "../pages/ConnectionsPage";
+import { FxPage } from "../pages/FxPage";
 import { LoginPage } from "../pages/LoginPage";
 import { OverviewPage } from "../pages/OverviewPage";
 import { ReportsPage } from "../pages/ReportsPage";
@@ -13,7 +14,7 @@ import { RouteTitleBoundary } from "./RouteTitle";
 
 export type AppRouteHandle = {
   title?: string;
-  view?: "overview" | "transactions" | "connections" | "reports" | "tax";
+  view?: "overview" | "transactions" | "connections" | "reports" | "tax" | "fx";
 };
 
 export const router = createBrowserRouter([
@@ -61,6 +62,11 @@ export const router = createBrowserRouter([
             path: "reports",
             element: <ReportsPage />,
             handle: { view: "reports", title: "재무제표" } satisfies AppRouteHandle
+          },
+          {
+            path: "fx",
+            element: <FxPage />,
+            handle: { view: "fx", title: "외환 관리" } satisfies AppRouteHandle
           },
           {
             path: "tax",
