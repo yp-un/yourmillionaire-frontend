@@ -4,6 +4,7 @@ const defaultSyncStreamBaseUrl =
 	"https://vh3nq63kxcjcrjkabaikqrddzm0ymhbf.lambda-url.ap-northeast-2.on.aws";
 const defaultTaxStrategyBaseUrl =
 	"https://la3losebvhzb5yrzliyopfcl6m0qikyd.lambda-url.ap-northeast-2.on.aws";
+const defaultFxStrategyBaseUrl = "";
 const defaultCognitoDomain =
 	"https://yourmillionare-dev.auth.ap-northeast-2.amazoncognito.com";
 const defaultCognitoClientId = "6sop98o9dvge94bsipftmkrkeh";
@@ -30,6 +31,9 @@ export const apiConfig = {
 	taxStrategyBaseUrl: import.meta.env.VITE_TAX_STRATEGY_URL
 		? trimTrailingSlash(import.meta.env.VITE_TAX_STRATEGY_URL)
 		: trimTrailingSlash(defaultTaxStrategyBaseUrl),
+	fxStrategyBaseUrl: import.meta.env.VITE_FX_STRATEGY_URL
+		? trimTrailingSlash(import.meta.env.VITE_FX_STRATEGY_URL)
+		: defaultFxStrategyBaseUrl,
 	syncStreamBaseUrl: import.meta.env.VITE_SYNC_STREAM_URL
 		? trimTrailingSlash(import.meta.env.VITE_SYNC_STREAM_URL)
 		: trimTrailingSlash(defaultSyncStreamBaseUrl),

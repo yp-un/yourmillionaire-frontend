@@ -18,6 +18,7 @@ import type {
 	ClassifyJournalRequest,
 	CorporationProfile,
 	CreateBankAccountRequest,
+	CreateFxAccountRequest,
 	CreateJournalEntryRequest,
 	CreateTenantRequest,
 	CreateTenantResponse,
@@ -28,7 +29,11 @@ import type {
 	FilingsUpcomingResponse,
 	FindBenefitsRequest,
 	FindBenefitsResponse,
+	FxAccount,
+	FxAccountsResponse,
 	FxRevalueResponse,
+	FxStrategyEvent,
+	FxStrategyScenario,
 	HealthResponse,
 	IncomeStatementResponse,
 	JournalEntriesQuery,
@@ -49,6 +54,7 @@ import type {
 	Tenant,
 	TrialBalanceResponse,
 	UpdateEntryLinesRequest,
+	UpdateFxAccountBalanceRequest,
 	UpdateReceivableRequest,
 	UpsertCorporationProfileRequest,
 	WithholdingPendingResponse,
@@ -299,6 +305,37 @@ export function createYmApi(getIdToken: GetIdToken) {
 				params: { asOf },
 				url: apiEndpoints.fxRevalue(tenantId),
 			}),
+		getAccounts: (tenantId: string) =>
+			request<FxAccountsResponse>({
+				method: "GET",
+				url: apiEndpoints.fxAccounts(tenantId),
+			}),
+		createAccount: (tenantId: string, body: CreateFxAccountRequest) =>
+			request<FxAccount>({
+				data: body,
+				method: "POST",
+				url: apiEndpoints.fxAccounts(tenantId),
+			}),
+		updateAccountBalance: (
+			tenantId: string,
+			accountId: string,
+			body: UpdateFxAccountBalanceRequest,
+		) =>
+			request<FxAccount>({
+				data: body,
+				method: "PATCH",
+				url: apiEndpoints.fxAccountBalance(tenantId, accountId),
+			}),
+		deleteAccount: (tenantId: string, accountId: string) =>
+			request<void>({
+				method: "DELETE",
+				url: apiEndpoints.fxAccount(tenantId, accountId),
+			}),
+		runStrategy: (
+			tenantId: string,
+			scenario: FxStrategyScenario,
+			onEvent?: (event: FxStrategyEvent) => void,
+		) => streamFxStrategy(getIdToken, tenantId, scenario, onEvent),
 	};
 
 	const tax = {
@@ -462,6 +499,11 @@ export function createYmApi(getIdToken: GetIdToken) {
 		getUsdKrwRate: fx.getUsdKrwRate,
 		getUsdKrwRates: fx.getUsdKrwRates,
 		revalueFx: fx.revalue,
+		getFxAccounts: fx.getAccounts,
+		createFxAccount: fx.createAccount,
+		updateFxAccountBalance: fx.updateAccountBalance,
+		deleteFxAccount: fx.deleteAccount,
+		runFxStrategy: fx.runStrategy,
 		getCorporationProfile: tax.getCorporationProfile,
 		upsertCorporationProfile: tax.upsertCorporationProfile,
 		getUpcomingFilings: tax.getUpcomingFilings,
@@ -543,6 +585,76 @@ async function streamTaxStrategy(
 
 	buffer += decoder.decode();
 	consumeSseBuffer<TaxStrategyEvent>(`${buffer}\n\n`, emit, (data) => ({
+		type: "message",
+		chunk: data,
+	}));
+
+	return events;
+}
+
+async function streamFxStrategy(
+	getIdToken: GetIdToken,
+	tenantId: string,
+	scenario: FxStrategyScenario,
+	onEvent?: (event: FxStrategyEvent) => void,
+) {
+	if (!apiConfig.fxStrategyBaseUrl) {
+		throw new YmApiError(
+			"외환 전략 API URL이 설정되지 않았습니다. VITE_FX_STRATEGY_URL에 백엔드 CDK 출력값 FxStrategyFnUrl을 넣어 주세요.",
+			0,
+		);
+	}
+
+	const response = await fetch(
+		`${apiConfig.fxStrategyBaseUrl}${apiEndpoints.fxStrategy(tenantId)}`,
+		{
+			body: JSON.stringify({ tenantId, scenario }),
+			headers: {
+				Accept: "text/event-stream",
+				Authorization: `Bearer ${await getIdToken()}`,
+				"Cache-Control": "no-cache",
+				"Content-Type": "application/json",
+			},
+			method: "POST",
+		},
+	);
+
+	if (!response.ok) {
+		throw new YmApiError(await responseErrorMessage(response), response.status);
+	}
+
+	if (!response.body) {
+		throw new YmApiError(
+			"외환 전략 API 응답 스트림이 비어 있습니다.",
+			response.status,
+		);
+	}
+
+	const events: FxStrategyEvent[] = [];
+	const emit = (event: FxStrategyEvent) => {
+		events.push(event);
+		onEvent?.(event);
+	};
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = "";
+
+	while (true) {
+		const { done, value } = await reader.read();
+
+		if (done) {
+			break;
+		}
+
+		buffer += decoder.decode(value, { stream: true });
+		buffer = consumeSseBuffer<FxStrategyEvent>(buffer, emit, (data) => ({
+			type: "message",
+			chunk: data,
+		}));
+	}
+
+	buffer += decoder.decode();
+	consumeSseBuffer<FxStrategyEvent>(`${buffer}\n\n`, emit, (data) => ({
 		type: "message",
 		chunk: data,
 	}));

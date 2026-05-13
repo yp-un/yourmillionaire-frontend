@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
-import { BarChart3, FileBarChart, Link2, ReceiptText, ScrollText } from "lucide-react";
+import { BarChart3, DollarSign, FileBarChart, Link2, ReceiptText, ScrollText } from "lucide-react";
 
 import { cn } from "@millionaire/ui";
 
@@ -13,6 +13,7 @@ const mobileNavItems = [
   { label: "계좌 연결", path: "/connections", icon: Link2 },
   { label: "분개", path: "/transactions", icon: ReceiptText },
   { label: "리포트", path: "/reports", icon: FileBarChart },
+  { label: "외환", path: "/fx", icon: DollarSign },
   { label: "세무", path: "/tax", icon: ScrollText }
 ];
 
@@ -50,7 +51,7 @@ export function AppLayout() {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-sidebar-border bg-sidebar md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-6 border-t border-sidebar-border bg-sidebar md:hidden">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
 
