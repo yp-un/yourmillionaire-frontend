@@ -31,6 +31,7 @@ import type {
   ReportLineItem,
   TrialBalanceResponse
 } from "../api/types";
+import { MoneyBarChart } from "../components/LazyDashboardCharts";
 import { formatCurrency, getCurrentMonthRange } from "../lib/journal";
 import { useWorkspace } from "../workspace/WorkspaceProvider";
 
@@ -112,6 +113,16 @@ export function ReportsPage() {
             <MetricCard label="영업비용" value={formatCurrency(amountTotal(pnl?.operatingExpenses.subtotal))} tone="danger" />
             <MetricCard label="당기순이익" value={formatCurrency(amountTotal(pnl?.netIncome))} />
           </div>
+          <SectionCard className="mt-4" title="손익 흐름">
+            <MoneyBarChart
+              data={[
+                { name: "매출", value: amountTotal(pnl?.revenue.subtotal), fill: "var(--chart-1)" },
+                { name: "매출원가", value: amountTotal(pnl?.cogs.subtotal), fill: "var(--chart-3)" },
+                { name: "영업비용", value: amountTotal(pnl?.operatingExpenses.subtotal), fill: "var(--chart-4)" },
+                { name: "순이익", value: Math.max(amountTotal(pnl?.netIncome), 0), fill: "var(--chart-2)" }
+              ]}
+            />
+          </SectionCard>
           <ReportSection className="mt-4" title="영업비용 상세" items={pnl?.operatingExpenses.items ?? []} empty="집계된 영업비용이 없습니다." />
         </TabsContent>
 
@@ -121,6 +132,15 @@ export function ReportsPage() {
             <MetricCard label="부채" value={formatCurrency(amountTotal(balanceSheet?.liabilities.total))} tone="warning" />
             <MetricCard label="부채와 자본" value={formatCurrency(amountTotal(balanceSheet?.totalLiabilitiesAndEquity))} />
           </div>
+          <SectionCard className="mt-4" title="재무상태 구성">
+            <MoneyBarChart
+              data={[
+                { name: "자산", value: amountTotal(balanceSheet?.assets.total), fill: "var(--chart-1)" },
+                { name: "부채", value: amountTotal(balanceSheet?.liabilities.total), fill: "var(--chart-3)" },
+                { name: "자본", value: amountTotal(balanceSheet?.equity.subtotal), fill: "var(--chart-2)" }
+              ]}
+            />
+          </SectionCard>
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             <ReportSection title="유동자산" items={balanceSheet?.assets.current.items ?? []} empty="유동자산이 없습니다." />
             <ReportSection title="유동부채" items={balanceSheet?.liabilities.current.items ?? []} empty="유동부채가 없습니다." />
@@ -134,6 +154,16 @@ export function ReportsPage() {
             <MetricCard label="순증감" value={formatCurrency(amountTotal(cashFlow?.netChange))} tone="primary" />
             <MetricCard label="기말 현금" value={formatCurrency(amountTotal(cashFlow?.closingCash))} />
           </div>
+          <SectionCard className="mt-4" title="현금흐름 구성">
+            <MoneyBarChart
+              data={[
+                { name: "영업", value: Math.max(amountTotal(cashFlow?.operating.subtotal), 0), fill: "var(--chart-1)" },
+                { name: "투자", value: Math.max(amountTotal(cashFlow?.investing.subtotal), 0), fill: "var(--chart-3)" },
+                { name: "재무", value: Math.max(amountTotal(cashFlow?.financing.subtotal), 0), fill: "var(--chart-5)" },
+                { name: "기말", value: amountTotal(cashFlow?.closingCash), fill: "var(--chart-2)" }
+              ]}
+            />
+          </SectionCard>
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             <ReportSection title="영업활동" items={cashFlow?.operating.items ?? []} empty="영업활동 항목이 없습니다." />
             <ReportSection title="투자활동" items={cashFlow?.investing.items ?? []} empty="투자활동 항목이 없습니다." />
