@@ -21,14 +21,15 @@ import type {
   ReceivablesBoard,
   SyncStartResponse
 } from "../api/types";
-import { accountNames, formatCurrency, getCurrentMonthRange } from "../lib/journal";
+import { DonutChart, MoneyBarChart } from "../components/LazyDashboardCharts";
+import { accountNames, amountTotal, formatCurrency, getCurrentMonthRange } from "../lib/journal";
 import { useWorkspace } from "../workspace/WorkspaceProvider";
 
 type LoadState = "error" | "loading" | "ready";
 
 export function OverviewPage() {
   const api = useApi();
-  const { selectedTenant, selectedTenantId, status: workspaceStatus } = useWorkspace();
+  const { selectedTenantId, status: workspaceStatus } = useWorkspace();
   const monthRange = useMemo(() => getCurrentMonthRange(), []);
   const today = useMemo(() => getTodayDateInput(), []);
   const ym = monthRange.from.slice(0, 7);
@@ -141,6 +142,21 @@ export function OverviewPage() {
   const cashLikeBalances = balances.filter((balance) => balance.accountCode.startsWith("10")).slice(0, 6);
   const syncDisplayStatus = syncing ? "running" : (lastSyncResult?.status ?? "idle");
   const syncRangeInvalid = !syncFrom || !syncTo || syncFrom > syncTo || syncTo > today;
+  const summaryChartData = [
+    { name: "입금", value: amountTotal(summary?.income), fill: "var(--chart-1)" },
+    { name: "지출", value: amountTotal(summary?.expense), fill: "var(--chart-4)" },
+    { name: "순현금", value: Math.max(amountTotal(summary?.netCashBalance), 0), fill: "var(--chart-2)" }
+  ];
+  const receivableChartData = [
+    { name: "대기", value: receivables?.pending.length ?? 0, fill: "var(--chart-1)" },
+    { name: "곧 만기", value: receivables?.dueSoon.length ?? 0, fill: "var(--chart-3)" },
+    { name: "연체", value: receivables?.overdue.length ?? 0, fill: "var(--chart-4)" },
+    { name: "수금 완료", value: receivables?.collected.length ?? 0, fill: "var(--chart-2)" }
+  ];
+  const balanceChartData = cashLikeBalances.map((balance) => ({
+    name: compactAccountName(balance.displayName || balance.accountName),
+    value: amountTotal(balance.balance)
+  }));
 
   return (
     <PageShell>
@@ -183,6 +199,29 @@ export function OverviewPage() {
         <MetricCard icon={Banknote} label={`${ym} 지출`} value={formatCurrency(summary?.expense ?? 0)} tone="danger" />
         <MetricCard icon={WalletCards} label="순현금흐름" value={formatCurrency(summary?.netCashBalance ?? 0)} tone="default" />
         <MetricCard icon={FileClock} label="검토 필요" value={`${uncertainCount}건`} tone={uncertainCount > 0 ? "warning" : "default"} />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <SectionCard title="월간 현금 흐름">
+          <MoneyBarChart data={summaryChartData} />
+        </SectionCard>
+
+        <SectionCard title="수금 상태">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
+            <DonutChart data={receivableChartData} />
+            <div className="grid gap-2 text-sm">
+              {receivableChartData.map((item) => (
+                <div key={item.name} className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <span className="size-2 rounded-full" style={{ background: item.fill }} />
+                    {item.name}
+                  </span>
+                  <span className="font-medium number-tabular">{item.value}건</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </SectionCard>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -266,7 +305,10 @@ export function OverviewPage() {
 
       <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <SectionCard title="주요 계정 잔액">
-          <div className="space-y-2">
+          <div className="space-y-4">
+            {balanceChartData.length > 0 ? (
+              <MoneyBarChart data={balanceChartData} height={220} />
+            ) : null}
             {cashLikeBalances.length === 0 ? (
               <p className="text-sm text-muted-foreground">표시할 계정 잔액이 없습니다.</p>
             ) : (
@@ -406,6 +448,10 @@ function syncOutcomeLabel(outcome: string) {
   };
 
   return labels[outcome] ?? outcome;
+}
+
+function compactAccountName(value: string) {
+  return value.length > 6 ? `${value.slice(0, 6)}…` : value;
 }
 
 function getTodayDateInput() {

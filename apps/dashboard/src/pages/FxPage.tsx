@@ -35,6 +35,7 @@ import {
 
 import { useApi } from "../api/ApiProvider";
 import type { ExchangeRate, FxAccount, FxStrategyEvent, FxStrategyScenario } from "../api/types";
+import { MoneyBarChart, RateAreaChart } from "../components/LazyDashboardCharts";
 import {
 	StrategyMarkdownContent,
 	useStreamingStrategyText,
@@ -60,6 +61,7 @@ export function FxPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [accounts, setAccounts] = useState<FxAccount[]>([]);
 	const [rate, setRate] = useState<ExchangeRate | null>(null);
+	const [rateHistory, setRateHistory] = useState<ExchangeRate[]>([]);
 	const [bankLabel, setBankLabel] = useState("");
 	const [balance, setBalance] = useState("");
 	const [savingAccount, setSavingAccount] = useState(false);
@@ -72,6 +74,7 @@ export function FxPage() {
 	const strategyOutputRef = useRef<HTMLDivElement | null>(null);
 
 	const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+	const historyFrom = useMemo(() => daysAgoDateInput(30), []);
 	const totals = useMemo(() => {
 		return accounts.reduce(
 			(acc, account) => {
@@ -107,6 +110,23 @@ export function FxPage() {
 		displayedText: displayedStrategyText,
 		setAutoScroll: setStrategyAutoScroll,
 	} = useStreamingStrategyText(strategyOutputText, strategyRunning);
+	const accountChartData = useMemo(
+		() =>
+			accounts.map((account, index) => ({
+				fill: `var(--chart-${(index % 5) + 1})`,
+				name: compactLabel(account.bankLabel || account.organization || "USD"),
+				value: Number(account.balanceFcy ?? 0),
+			})),
+		[accounts],
+	);
+	const rateChartData = useMemo(
+		() =>
+			rateHistory.map((item) => ({
+				name: item.effectiveDate.slice(5),
+				value: Number(item.rate),
+			})),
+		[rateHistory],
+	);
 
 	async function loadFxAccounts() {
 		if (!selectedTenantId || workspaceStatus !== "ready") {
@@ -117,13 +137,17 @@ export function FxPage() {
 		setError(null);
 
 		try {
-			const [accountsResponse, rateResponse] = await Promise.all([
+			const [accountsResponse, rateResponse, rateHistoryResponse] = await Promise.all([
 				api.getFxAccounts(selectedTenantId),
 				api.getUsdKrwRate(today).catch(() => null),
+				api
+					.getUsdKrwRates({ from: historyFrom, to: today })
+					.catch(() => ({ rates: [] })),
 			]);
 
 			setAccounts(accountsResponse.accounts);
 			setRate(rateResponse);
+			setRateHistory(rateHistoryResponse.rates);
 			setBalanceInputs(
 				Object.fromEntries(
 					accountsResponse.accounts.map((account) => [
@@ -262,6 +286,32 @@ export function FxPage() {
 					label="USD/KRW 기준 환율"
 					value={rate ? `${formatNumber(rate.rate)}원` : "-"}
 				/>
+			</div>
+
+			<div className="grid min-w-0 gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+				<SectionCard className="min-w-0" title="계좌별 USD 잔액">
+					{accountChartData.length > 0 ? (
+						<MoneyBarChart
+							data={accountChartData}
+							height={240}
+							valueFormatter={formatUsd}
+						/>
+					) : (
+						<EmptyState icon={Wallet} title="차트로 볼 외화 잔액이 없습니다.">
+							USD 계좌를 등록하면 계좌별 잔액을 비교할 수 있습니다.
+						</EmptyState>
+					)}
+				</SectionCard>
+
+				<SectionCard className="min-w-0" title="USD/KRW 30일 추이">
+					{rateChartData.length > 0 ? (
+						<RateAreaChart data={rateChartData} height={240} />
+					) : (
+						<p className="text-sm text-muted-foreground">
+							표시할 환율 추이 데이터가 없습니다.
+						</p>
+					)}
+				</SectionCard>
 			</div>
 
 			<div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
@@ -551,4 +601,20 @@ function formatUsd(value: number | null | undefined) {
 		minimumFractionDigits: 2,
 		style: "currency",
 	}).format(numeric);
+}
+
+function compactLabel(value: string) {
+	return value.length > 8 ? `${value.slice(0, 8)}…` : value;
+}
+
+function daysAgoDateInput(days: number) {
+	const date = new Date();
+	date.setDate(date.getDate() - days);
+
+	return new Intl.DateTimeFormat("en-CA", {
+		day: "2-digit",
+		month: "2-digit",
+		timeZone: "Asia/Seoul",
+		year: "numeric",
+	}).format(date);
 }
