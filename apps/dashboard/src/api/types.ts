@@ -74,27 +74,39 @@ export type BankAccount = {
 export type JournalLine = {
   lineNo: number;
   accountCode: string;
+  accountName?: string | null;
+  accountType?: AccountType | string | null;
   debit: ApiNumber;
   credit: ApiNumber;
-  memo: string | null;
+  memo?: string | null;
 };
+
+export type JournalConfidenceStatus = "certain" | "discarded" | "uncertain";
+export type JournalEntryStatus = "draft" | "posted" | "reversed" | string;
 
 export type JournalEntry = {
   id: string;
-  tenantId?: string;
+  tenantId: string;
   entryDate: string;
+  postingDate?: string | null;
   source?: "codef_bank" | "manual" | string;
-  sourceRefId?: string;
-  description?: string;
-  aiConfidence?: number;
-  aiModel?: string;
+  sourceRefId?: string | null;
+  description?: string | null;
+  status?: JournalEntryStatus;
+  confidenceStatus?: JournalConfidenceStatus;
+  confidence?: number | null;
+  origin?: "manual" | "heuristic" | "ai" | "ai_low_conf" | string | null;
+  syncRunId?: string | null;
+  aiModel?: string | null;
+  createdAt?: string;
+  createdBy?: string | null;
   lines: JournalLine[];
 };
 
 export type JournalEntriesResponse = {
   entries: JournalEntry[];
   accountBalances?: BankAccountBalanceSnapshot[];
-  pendingDrafts?: PendingDrafts;
+  uncertain?: UncertainEntriesSummary;
 };
 
 export type BankAccountBalanceSnapshot = {
@@ -113,6 +125,7 @@ export type JournalEntriesQuery = {
   to: string;
   limit?: number;
   offset?: number;
+  confidenceStatus?: JournalConfidenceStatus | "all";
 };
 
 export type ClassifyJournalRequest = {
@@ -124,12 +137,13 @@ export type ClassifyJournalRequest = {
 
 export type CreateJournalEntryRequest = {
   entryDate: string;
-  description: string;
+  description?: string;
   lines: Array<{
     lineNo: number;
     accountCode: string;
     debit: number;
     credit: number;
+    memo?: string | null;
   }>;
 };
 
@@ -149,72 +163,16 @@ export type AccountsChartResponse = {
   accounts: AccountChartItem[];
 };
 
-export type PendingDrafts = {
+export type UncertainEntriesSummary = {
   count: number;
   message: string;
-  reviewEndpoint: string;
+  confirmEndpoint: string;
+  discardEndpoint: string;
+  patchEndpoint: string;
 };
 
-export type SyncRunStatus = "completed" | "failed" | "queued" | "running" | "timed_out";
-
-export type SyncStartResponse = {
-  syncRunId: string;
-  status: SyncRunStatus;
-  pollUrl: string;
-  executionArn: string;
-  startDate: string;
-};
-
-export type SyncStatusResponse = {
-  undispatched: number;
-  dispatched: number;
-  classified: number;
-  lastFetchedAt: string | null;
-  lastClassifiedAt: string | null;
-  status?: "classifying" | "done" | "fetching" | "idle" | string;
-};
-
-export type SyncRunAccountOutcome = "balance_only" | "codef_error" | "empty_result" | "no_connection" | "success";
-
-export type SyncRunSummary = {
-  id: string;
-  tenantId: string;
-  triggeredBy: "manual" | "schedule";
-  triggeredAt: string;
-  startedAt: string | null;
-  finishedAt: string | null;
-  status: SyncRunStatus;
-  totalAccounts: number;
-  successCount: number;
-  errorCount: number;
-  emptyCount: number;
-  userSummary: string | null;
-};
-
-export type SyncRunAccountSummary = {
-  organization: string;
-  accountNumber: string | null;
-  outcome: SyncRunAccountOutcome;
-  codefErrorCode: string | null;
-  codefErrorMessage: string | null;
-  userMessage: string | null;
-  fetchedCount: number;
-  balanceUpdated: boolean;
-  recordedAt: string;
-};
-
-export type SyncRunDetail = SyncRunSummary & {
-  accounts: SyncRunAccountSummary[];
-};
-
-export type SyncRunsResponse = {
-  runs: SyncRunSummary[];
-};
-
-export type LatestSyncRunResponse = SyncRunDetail | { run: null; accounts: [] };
-
-export type AcceptDraftRequest = {
-  correctedLines?: Array<{
+export type UpdateEntryLinesRequest = {
+  lines: Array<{
     lineNo: number;
     accountCode: string;
     debit: number;
@@ -223,11 +181,98 @@ export type AcceptDraftRequest = {
   }>;
 };
 
-export type AcceptDraftResponse = {
-  journalEntryId: string;
-  status: "posted" | string;
-  entryDate: string;
-  origin: "ai_low_conf" | "heuristic" | string;
+export type SyncRunStatus = "completed" | "failed" | "idle" | "queued" | "running" | "timed_out";
+
+export type SyncRunAccountOutcome = "balance_only" | "codef_error" | "empty_result" | "no_connection" | "success";
+
+export type SyncStreamAccountEvent = {
+  type: "account";
+  bankAccountId: string;
+  organization: string;
+  accountNumberMasked: string | null;
+  outcome: SyncRunAccountOutcome;
+  fetchedCount: number;
+  balanceUpdated: boolean;
+  balance: {
+    previous: number | null;
+    current: number | null;
+    delta: number | null;
+    currency: "KRW";
+  } | null;
+  codefErrorCode: string | null;
+  codefErrorMessage: string | null;
+  userMessage: string | null;
+};
+
+export type SyncStreamEvent =
+  | {
+      type: "heartbeat";
+      ts: string;
+    }
+  | {
+      type: "run-started";
+      syncRunId: string;
+      dateRange: { from: string; to: string };
+    }
+  | {
+      type: "progress";
+      message: string;
+    }
+  | SyncStreamAccountEvent
+  | {
+      type: "classification";
+      rawTransactionId: string;
+      sourceAccount: string | null;
+      occurredAt: string;
+      entryDate: string;
+      counterparty: string | null;
+      memo: string | null;
+      amount: number;
+      currency: "KRW";
+      status: "certain" | "uncertain";
+      origin: "heuristic" | "ai" | "ai_low_conf";
+      confidence: number | null;
+      ruleId: string | null;
+      lines: JournalLine[];
+      journalEntryId: string;
+    }
+  | {
+      type: "classification-error";
+      rawTransactionId: string;
+      reason: string;
+    }
+  | {
+      type: "error";
+      status: number;
+      reason: string;
+    }
+  | {
+      type: "done";
+      syncRunId: string;
+      totals: {
+        accountsScanned: number;
+        accountsSucceeded: number;
+        accountsFailed: number;
+        transactionsFetched: number;
+        transactionsCertain: number;
+        transactionsUncertain: number;
+      };
+      durationMs: number;
+      failed?: true;
+    };
+
+export type SyncStartResponse = {
+  syncRunId: string | null;
+  status: SyncRunStatus;
+  startedAt: string;
+  completedAt: string;
+  dateRange?: { from: string; to: string };
+  totals?: Extract<SyncStreamEvent, { type: "done" }>["totals"];
+  durationMs?: number;
+  failed?: boolean;
+  errorReason?: string;
+  accounts: SyncStreamAccountEvent[];
+  events: SyncStreamEvent[];
 };
 
 export type MonthlySummaryResponse = {
@@ -275,37 +320,28 @@ export type AccountBalancesResponse = {
   balances: AccountBalanceCard[];
 };
 
-export type JournalEntryDraft = {
-  rawTransactionId: string;
-  tenantId: string;
-  draftLines: JournalLine[];
-  origin: "ai_low_conf" | "heuristic" | string;
-  aiConfidence: number | null;
-  heuristicConfidence: number | null;
-  ruleId: string | null;
-  status: "accepted" | "discarded" | "pending" | string;
-  createdAt: string;
-};
-
-export type JournalDraftsResponse = {
-  drafts: JournalEntryDraft[];
-};
-
 export type ReportMetadata = {
   generatedAt: string;
   accountingStandard: "K-IFRS";
-  includesUnclassifiedDrafts: boolean;
+  uncertainEntryCount: number;
+  note: string;
+};
+
+export type AmountBreakdown = {
+  certain: number;
+  uncertain: number;
+  total: number;
 };
 
 export type ReportLineItem = {
   accountCode: string;
   accountName: string;
-  amount: number;
+  amount: AmountBreakdown;
 };
 
 export type ReportSectionBlock = {
   items: ReportLineItem[];
-  subtotal: number;
+  subtotal: AmountBreakdown;
 };
 
 export type IncomeStatementResponse = {
@@ -314,13 +350,13 @@ export type IncomeStatementResponse = {
   currency: "KRW";
   revenue: ReportSectionBlock;
   cogs: ReportSectionBlock;
-  grossProfit: number;
+  grossProfit: AmountBreakdown;
   operatingExpenses: ReportSectionBlock;
-  operatingIncome: number;
+  operatingIncome: AmountBreakdown;
   nonOperating: ReportSectionBlock;
-  netIncomeBeforeTax: number;
-  incomeTax: number;
-  netIncome: number;
+  netIncomeBeforeTax: AmountBreakdown;
+  incomeTax: AmountBreakdown;
+  netIncome: AmountBreakdown;
   metadata: ReportMetadata;
 };
 
@@ -330,15 +366,15 @@ export type BalanceSheetResponse = {
   assets: {
     current: ReportSectionBlock;
     nonCurrent: ReportSectionBlock;
-    total: number;
+    total: AmountBreakdown;
   };
   liabilities: {
     current: ReportSectionBlock;
     nonCurrent: ReportSectionBlock;
-    total: number;
+    total: AmountBreakdown;
   };
   equity: ReportSectionBlock;
-  totalLiabilitiesAndEquity: number;
+  totalLiabilitiesAndEquity: AmountBreakdown;
   metadata: ReportMetadata;
 };
 
@@ -350,26 +386,26 @@ export type CashFlowResponse = {
   operating: ReportSectionBlock;
   investing: ReportSectionBlock;
   financing: ReportSectionBlock;
-  netChange: number;
-  openingCash: number;
-  closingCash: number;
+  netChange: AmountBreakdown;
+  openingCash: AmountBreakdown;
+  closingCash: AmountBreakdown;
   metadata: ReportMetadata;
 };
 
 export type TrialBalanceRow = {
   accountCode: string;
   accountName: string;
-  debit: number;
-  credit: number;
-  balance: number;
+  debit: AmountBreakdown;
+  credit: AmountBreakdown;
+  balance: AmountBreakdown;
 };
 
 export type TrialBalanceResponse = {
   asOf: string;
   currency: "KRW";
   rows: TrialBalanceRow[];
-  totalDebit: number;
-  totalCredit: number;
+  totalDebit: AmountBreakdown;
+  totalCredit: AmountBreakdown;
   metadata: ReportMetadata;
 };
 

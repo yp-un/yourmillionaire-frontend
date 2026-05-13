@@ -16,11 +16,10 @@ import { useApi } from "../api/ApiProvider";
 import type {
   AccountBalanceCard,
   ExchangeRate,
-  JournalEntryDraft,
+  JournalEntry,
   MonthlySummaryResponse,
   ReceivablesBoard,
-  SyncRunDetail,
-  SyncStatusResponse
+  SyncStartResponse
 } from "../api/types";
 import { accountNames, formatCurrency, getCurrentMonthRange } from "../lib/journal";
 import { useWorkspace } from "../workspace/WorkspaceProvider";
@@ -36,13 +35,13 @@ export function OverviewPage() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<MonthlySummaryResponse | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatusResponse | null>(null);
-  const [latestSyncRun, setLatestSyncRun] = useState<SyncRunDetail | null>(null);
+  const [lastSyncResult, setLastSyncResult] = useState<SyncStartResponse | null>(null);
   const [balances, setBalances] = useState<AccountBalanceCard[]>([]);
   const [receivables, setReceivables] = useState<ReceivablesBoard | null>(null);
-  const [drafts, setDrafts] = useState<JournalEntryDraft[]>([]);
+  const [uncertainEntries, setUncertainEntries] = useState<JournalEntry[]>([]);
+  const [uncertainCount, setUncertainCount] = useState(0);
   const [fxRate, setFxRate] = useState<ExchangeRate | null>(null);
-  const [acceptingDraftId, setAcceptingDraftId] = useState<string | null>(null);
+  const [confirmingEntryId, setConfirmingEntryId] = useState<string | null>(null);
 
   const load = async () => {
     if (!selectedTenantId || workspaceStatus !== "ready") {
@@ -53,22 +52,25 @@ export function OverviewPage() {
     setError(null);
 
     try {
-      const [nextSummary, nextSync, nextLatestSyncRun, nextBalances, nextReceivables, nextDrafts, nextFx] = await Promise.all([
+      const [nextSummary, nextBalances, nextReceivables, nextUncertainEntries, nextFx] = await Promise.all([
         api.getMonthlySummary(selectedTenantId, ym),
-        api.getSyncStatus(selectedTenantId),
-        api.getLatestSyncRun(selectedTenantId),
         api.getAccountBalances(selectedTenantId),
         api.getReceivables(selectedTenantId),
-        api.getJournalDrafts(selectedTenantId),
+        api.getJournalEntries(selectedTenantId, {
+          confidenceStatus: "uncertain",
+          from: monthRange.from,
+          limit: 3,
+          offset: 0,
+          to: monthRange.to
+        }),
         api.getUsdKrwRate(new Date().toISOString().slice(0, 10)).catch(() => null)
       ]);
 
       setSummary(nextSummary);
-      setSyncStatus(nextSync);
-      setLatestSyncRun(nextLatestSyncRun);
       setBalances(nextBalances.balances);
       setReceivables(nextReceivables);
-      setDrafts(nextDrafts.drafts);
+      setUncertainEntries(nextUncertainEntries.entries);
+      setUncertainCount(nextUncertainEntries.uncertain?.count ?? nextUncertainEntries.entries.length);
       setFxRate(nextFx);
       setLoadState("ready");
     } catch (loadError) {
@@ -90,13 +92,15 @@ export function OverviewPage() {
     setError(null);
 
     try {
-      const started = await api.startSync(selectedTenantId);
-      const [nextSync, nextSyncRun] = await Promise.all([
-        api.getSyncStatus(selectedTenantId),
-        api.getSyncRun(selectedTenantId, started.syncRunId).catch(() => api.getLatestSyncRun(selectedTenantId))
-      ]);
-      setSyncStatus(nextSync);
-      setLatestSyncRun(nextSyncRun);
+      const result = await api.startSync(selectedTenantId);
+      setLastSyncResult(result);
+
+      if (result.failed) {
+        setError(result.errorReason ?? "수집 파이프라인이 완료되지 못했습니다.");
+        return;
+      }
+
+      await load();
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : "수집 파이프라인을 시작하지 못했습니다.");
     } finally {
@@ -104,29 +108,30 @@ export function OverviewPage() {
     }
   }
 
-  async function handleAcceptDraft(rawTransactionId: string) {
+  async function handleConfirmEntry(entryId: string) {
     if (!selectedTenantId) {
       return;
     }
 
-    setAcceptingDraftId(rawTransactionId);
+    setConfirmingEntryId(entryId);
     setError(null);
 
     try {
-      await api.acceptJournalDraft(selectedTenantId, rawTransactionId);
-      setDrafts((current) => current.filter((draft) => draft.rawTransactionId !== rawTransactionId));
+      await api.confirmJournalEntry(selectedTenantId, entryId);
+      setUncertainEntries((current) => current.filter((entry) => entry.id !== entryId));
+      setUncertainCount((current) => Math.max(current - 1, 0));
       void load();
     } catch (acceptError) {
       setError(acceptError instanceof Error ? acceptError.message : "분개 초안을 확정하지 못했습니다.");
     } finally {
-      setAcceptingDraftId(null);
+      setConfirmingEntryId(null);
     }
   }
 
   const receivableCount =
     (receivables?.pending.length ?? 0) + (receivables?.dueSoon.length ?? 0) + (receivables?.overdue.length ?? 0);
   const cashLikeBalances = balances.filter((balance) => balance.accountCode.startsWith("10")).slice(0, 6);
-  const syncDisplayStatus = latestSyncRun?.status ?? syncStatus?.status;
+  const syncDisplayStatus = syncing ? "running" : (lastSyncResult?.status ?? "idle");
 
   return (
     <PageShell>
@@ -152,7 +157,7 @@ export function OverviewPage() {
         <MetricCard icon={CircleDollarSign} label={`${ym} 입금`} value={formatCurrency(summary?.income ?? 0)} tone="primary" />
         <MetricCard icon={Banknote} label={`${ym} 지출`} value={formatCurrency(summary?.expense ?? 0)} tone="danger" />
         <MetricCard icon={WalletCards} label="순현금흐름" value={formatCurrency(summary?.netCashBalance ?? 0)} tone="default" />
-        <MetricCard icon={FileClock} label="검토 초안" value={`${drafts.length}건`} tone={drafts.length > 0 ? "warning" : "default"} />
+        <MetricCard icon={FileClock} label="검토 필요" value={`${uncertainCount}건`} tone={uncertainCount > 0 ? "warning" : "default"} />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -161,40 +166,45 @@ export function OverviewPage() {
           trailing={<Badge variant={syncBadgeVariant(syncDisplayStatus)}>{syncStatusLabel(syncDisplayStatus)}</Badge>}
         >
           <div className="grid gap-3 text-sm">
-            <StatusRow label="최근 실행" value={latestSyncRun ? formatNullableDateTime(latestSyncRun.triggeredAt) : "없음"} />
+            <StatusRow label="최근 실행" value={lastSyncResult ? formatNullableDateTime(lastSyncResult.startedAt) : "없음"} />
             <StatusRow
               label="계좌 처리"
               value={
-                latestSyncRun
-                  ? `${latestSyncRun.successCount}/${latestSyncRun.totalAccounts} 성공`
+                lastSyncResult?.totals
+                  ? `${lastSyncResult.totals.accountsSucceeded}/${lastSyncResult.totals.accountsScanned} 성공`
                   : "없음"
               }
             />
             <StatusRow
-              label="오류/빈 응답"
+              label="오류 계좌"
               value={
-                latestSyncRun
-                  ? `${latestSyncRun.errorCount}건 / ${latestSyncRun.emptyCount}건`
+                lastSyncResult?.totals
+                  ? `${lastSyncResult.totals.accountsFailed}건`
                   : "없음"
               }
             />
-            <StatusRow label="수집 후 대기" value={`${syncStatus?.undispatched ?? 0}건`} />
-            <StatusRow label="분류 대기/진행" value={`${syncStatus?.dispatched ?? 0}건`} />
-            <StatusRow label="분류 완료" value={`${syncStatus?.classified ?? 0}건`} />
-            <StatusRow label="마지막 수집" value={formatNullableDateTime(syncStatus?.lastFetchedAt)} />
-            <StatusRow label="마지막 분류" value={formatNullableDateTime(syncStatus?.lastClassifiedAt)} />
-            {latestSyncRun?.userSummary ? (
-              <p className="ym-panel px-3 py-2 text-sm leading-6 text-muted-foreground">{latestSyncRun.userSummary}</p>
+            <StatusRow label="수집 거래" value={lastSyncResult?.totals ? `${lastSyncResult.totals.transactionsFetched}건` : "없음"} />
+            <StatusRow
+              label="분류 결과"
+              value={
+                lastSyncResult?.totals
+                  ? `확정 ${lastSyncResult.totals.transactionsCertain}건 / 검토 ${lastSyncResult.totals.transactionsUncertain}건`
+                  : "없음"
+              }
+            />
+            <StatusRow label="소요 시간" value={formatDuration(lastSyncResult?.durationMs)} />
+            {lastSyncResult?.errorReason ? (
+              <p className="ym-panel px-3 py-2 text-sm leading-6 text-destructive">{lastSyncResult.errorReason}</p>
             ) : null}
-            {latestSyncRun?.accounts.length ? (
+            {lastSyncResult?.accounts.length ? (
               <div className="space-y-2">
-                {latestSyncRun.accounts.slice(0, 3).map((account) => (
+                {lastSyncResult.accounts.slice(0, 3).map((account) => (
                   <div
-                    key={`${account.organization}-${account.accountNumber ?? "unknown"}-${account.recordedAt}`}
+                    key={`${account.organization}-${account.bankAccountId}`}
                     className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground">{account.accountNumber ?? account.organization}</p>
+                      <p className="truncate font-medium text-foreground">{account.accountNumberMasked ?? account.organization}</p>
                       <p className="text-xs text-muted-foreground">{account.userMessage ?? account.codefErrorMessage ?? "처리 결과가 기록되었습니다."}</p>
                     </div>
                     <Badge variant={account.outcome === "success" || account.outcome === "balance_only" ? "success" : "warning"}>
@@ -237,38 +247,38 @@ export function OverviewPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="AI 검토 초안">
+        <SectionCard title="AI 검토 항목">
           <div className="space-y-3">
-            {drafts.length === 0 ? (
+            {uncertainEntries.length === 0 ? (
               <p className="text-sm text-muted-foreground">AI 자동 분류 결과를 모두 확정했습니다.</p>
             ) : (
               <>
                 <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                  <span>확신도가 낮은 거래 {drafts.length}건을 확인해야 합니다.</span>
+                  <span>확신도가 낮은 분개 {uncertainCount}건을 확인해야 합니다.</span>
                 </div>
-                {drafts.slice(0, 3).map((draft) => (
-                  <div key={draft.rawTransactionId} className="rounded-md border p-3 text-sm">
+                {uncertainEntries.slice(0, 3).map((entry) => (
+                  <div key={entry.id} className="rounded-md border p-3 text-sm">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium text-foreground">{draft.createdAt.slice(0, 10)}</p>
-                          <Badge variant="outline">{draftOriginLabel(draft.origin)}</Badge>
+                          <p className="font-medium text-foreground">{entry.entryDate}</p>
+                          <Badge variant="outline">{entryOriginLabel(entry.origin)}</Badge>
                         </div>
                         <p className="mt-1 text-muted-foreground">
-                          확신도 {formatConfidence(draft.aiConfidence ?? draft.heuristicConfidence)}
+                          확신도 {formatConfidence(entry.confidence)}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {draft.draftLines.map((line) => `${accountNames[line.accountCode] ?? "미지정 계정"} ${formatCurrency(draftLineAmount(line))}`).join(" / ")}
+                          {entry.lines.map((line) => `${line.accountName ?? accountNames[line.accountCode] ?? "미지정 계정"} ${formatCurrency(entryLineAmount(line))}`).join(" / ")}
                         </p>
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => void handleAcceptDraft(draft.rawTransactionId)}
-                        disabled={acceptingDraftId === draft.rawTransactionId}
+                        onClick={() => void handleConfirmEntry(entry.id)}
+                        disabled={confirmingEntryId === entry.id}
                       >
-                        {acceptingDraftId === draft.rawTransactionId ? (
+                        {confirmingEntryId === entry.id ? (
                           <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                         ) : (
                           <CheckCircle2 className="size-4" aria-hidden="true" />
@@ -306,17 +316,19 @@ function formatConfidence(value: number | null | undefined) {
   return `${Math.round(value * 100)}%`;
 }
 
-function draftLineAmount(line: JournalEntryDraft["draftLines"][number]) {
+function entryLineAmount(line: JournalEntry["lines"][number]) {
   return Number(line.debit) > 0 ? line.debit : line.credit;
 }
 
-function draftOriginLabel(origin: string) {
+function entryOriginLabel(origin: string | null | undefined) {
   const labels: Record<string, string> = {
+    ai: "AI 분류",
     ai_low_conf: "AI 검토",
-    heuristic: "규칙 기반"
+    heuristic: "규칙 기반",
+    manual: "수동 입력"
   };
 
-  return labels[origin] ?? origin;
+  return origin ? labels[origin] ?? origin : "자동 분류";
 }
 
 function syncBadgeVariant(status: string | undefined): "destructive" | "outline" | "success" | "warning" {
@@ -348,7 +360,7 @@ function syncStatusLabel(status: string | undefined) {
     timed_out: "시간 초과"
   };
 
-  return status ? labels[status] ?? status : "unknown";
+  return status ? labels[status] ?? status : "대기";
 }
 
 function syncOutcomeLabel(outcome: string) {
@@ -361,4 +373,16 @@ function syncOutcomeLabel(outcome: string) {
   };
 
   return labels[outcome] ?? outcome;
+}
+
+function formatDuration(value: number | null | undefined) {
+  if (!value) {
+    return "없음";
+  }
+
+  if (value < 1000) {
+    return `${value}ms`;
+  }
+
+  return `${Math.round(value / 1000)}초`;
 }

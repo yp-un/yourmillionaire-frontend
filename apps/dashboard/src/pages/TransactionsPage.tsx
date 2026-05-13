@@ -21,7 +21,7 @@ import {
 
 import { useApi } from "../api/ApiProvider";
 import { YmApiError } from "../api/client";
-import type { BankAccountBalanceSnapshot, JournalEntry, JournalEntryDraft, PendingDrafts } from "../api/types";
+import type { BankAccountBalanceSnapshot, JournalEntry, UncertainEntriesSummary } from "../api/types";
 import {
   formatCurrency,
   formatJournalLines,
@@ -45,9 +45,9 @@ export function TransactionsPage() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [accountBalances, setAccountBalances] = useState<BankAccountBalanceSnapshot[]>([]);
   const [accountLabels, setAccountLabels] = useState<AccountLabelMap>({});
-  const [pendingDrafts, setPendingDrafts] = useState<PendingDrafts | null>(null);
-  const [drafts, setDrafts] = useState<JournalEntryDraft[]>([]);
-  const [acceptingDraftId, setAcceptingDraftId] = useState<string | null>(null);
+  const [uncertainSummary, setUncertainSummary] = useState<UncertainEntriesSummary | null>(null);
+  const [uncertainEntries, setUncertainEntries] = useState<JournalEntry[]>([]);
+  const [confirmingEntryId, setConfirmingEntryId] = useState<string | null>(null);
   const [filter, setFilter] = useState<EntryFilter>("all");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -86,22 +86,32 @@ export function TransactionsPage() {
 
       try {
         const response = await api.getJournalEntries(tenantId, {
+          confidenceStatus: "all",
           from,
           to,
           limit,
           offset
         });
 
-        const nextDrafts =
-          response.pendingDrafts && response.pendingDrafts.count > 0
-            ? await api.getJournalDrafts(tenantId).catch(() => ({ drafts: [] }))
-            : { drafts: [] };
+        const nextUncertainEntries =
+          response.uncertain && response.uncertain.count > 0
+            ? await api
+                .getJournalEntries(tenantId, {
+                  confidenceStatus: "uncertain",
+                  from,
+                  limit: 100,
+                  offset: 0,
+                  to
+                })
+                .catch(() => ({ entries: [] }))
+            : { entries: [] };
 
         if (!cancelled) {
-          setEntries((current) => (offset === 0 ? response.entries : [...current, ...response.entries]));
+          const visibleEntries = response.entries.filter((entry) => entry.confidenceStatus !== "discarded");
+          setEntries((current) => (offset === 0 ? visibleEntries : [...current, ...visibleEntries]));
           setAccountBalances(response.accountBalances ?? []);
-          setPendingDrafts(response.pendingDrafts ?? null);
-          setDrafts(nextDrafts.drafts);
+          setUncertainSummary(response.uncertain ?? null);
+          setUncertainEntries(nextUncertainEntries.entries);
           setHasMore(response.entries.length === limit);
           setLoadState("ready");
         }
@@ -151,26 +161,26 @@ export function TransactionsPage() {
     setRequestKey((current) => current + 1);
   }
 
-  async function handleAcceptDraft(rawTransactionId: string) {
+  async function handleConfirmEntry(entryId: string) {
     if (!selectedTenantId) {
       return;
     }
 
-    setAcceptingDraftId(rawTransactionId);
+    setConfirmingEntryId(entryId);
     setError(null);
 
     try {
-      await api.acceptJournalDraft(selectedTenantId, rawTransactionId);
-      setDrafts((current) => current.filter((draft) => draft.rawTransactionId !== rawTransactionId));
-      setPendingDrafts((current) =>
+      await api.confirmJournalEntry(selectedTenantId, entryId);
+      setUncertainEntries((current) => current.filter((entry) => entry.id !== entryId));
+      setUncertainSummary((current) =>
         current ? { ...current, count: Math.max(current.count - 1, 0) } : current
       );
       setOffset(0);
       setRequestKey((current) => current + 1);
     } catch (acceptError) {
-      setError(acceptError instanceof Error ? acceptError.message : "검토 초안을 확정하지 못했습니다.");
+      setError(acceptError instanceof Error ? acceptError.message : "검토 분개를 확정하지 못했습니다.");
     } finally {
-      setAcceptingDraftId(null);
+      setConfirmingEntryId(null);
     }
   }
 
@@ -179,7 +189,7 @@ export function TransactionsPage() {
     { label: "조회 범위 출금", value: formatCurrency(summary.moneyOut), tone: "danger" as const },
     { label: "순현금흐름", value: formatCurrency(summary.moneyIn - summary.moneyOut), tone: "default" as const }
   ];
-  const hasPendingDrafts = Boolean(pendingDrafts && pendingDrafts.count > 0 && drafts.length > 0);
+  const hasUncertainEntries = Boolean(uncertainSummary && uncertainSummary.count > 0 && uncertainEntries.length > 0);
 
   return (
     <PageShell>
@@ -233,42 +243,42 @@ export function TransactionsPage() {
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
-      {hasPendingDrafts && pendingDrafts ? (
+      {hasUncertainEntries && uncertainSummary ? (
         <Notice tone="warning">
           <div className="flex gap-2">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <div>
-              <p>{pendingDrafts.message}</p>
-              <p className="mt-1 text-xs opacity-80">검토 대상 {drafts.length}건</p>
+              <p>{uncertainSummary.message}</p>
+              <p className="mt-1 text-xs opacity-80">검토 대상 {uncertainEntries.length}건</p>
             </div>
           </div>
         </Notice>
       ) : null}
 
-      {hasPendingDrafts && pendingDrafts ? (
+      {hasUncertainEntries && uncertainSummary ? (
         <section className="ym-surface space-y-4 p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-base font-semibold tracking-normal">검토 필요한 거래</h3>
               <p className="mt-1 text-sm text-muted-foreground">추천 분개를 확인한 뒤 그대로 확정할 수 있습니다.</p>
             </div>
-            <Badge variant="warning">{drafts.length}건 대기</Badge>
+            <Badge variant="warning">{uncertainSummary.count}건 대기</Badge>
           </div>
 
           <div className="grid gap-3">
-            {drafts.map((draft) => (
-              <div key={draft.rawTransactionId} className="rounded-md border bg-card p-4">
+            {uncertainEntries.map((entry) => (
+              <div key={entry.id} className="rounded-md border bg-card p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-foreground">{draft.createdAt.slice(0, 10)}</span>
-                      <Badge variant="outline">{draftOriginLabel(draft.origin)}</Badge>
-                      <Badge variant="warning">확신도 {formatConfidence(draft.aiConfidence ?? draft.heuristicConfidence)}</Badge>
+                      <span className="font-semibold text-foreground">{entry.entryDate}</span>
+                      <Badge variant="outline">{entryOriginLabel(entry.origin)}</Badge>
+                      <Badge variant="warning">확신도 {formatConfidence(entry.confidence)}</Badge>
                     </div>
                     <div className="mt-3 grid gap-2 text-sm">
-                      {draft.draftLines.map((line) => (
+                      {entry.lines.map((line) => (
                         <div key={line.lineNo} className="ym-panel flex flex-col gap-1 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                          <span className="font-medium text-foreground">{getAccountLabelForDraft(line.accountCode, accountLabels)}</span>
+                          <span className="font-medium text-foreground">{line.accountName ?? getAccountLabelForEntry(line.accountCode, accountLabels)}</span>
                           <span className="number-tabular text-muted-foreground">
                             차변 {formatCurrency(line.debit)} / 대변 {formatCurrency(line.credit)}
                           </span>
@@ -279,10 +289,10 @@ export function TransactionsPage() {
                   <Button
                     className="shrink-0"
                     variant="outline"
-                    onClick={() => void handleAcceptDraft(draft.rawTransactionId)}
-                    disabled={acceptingDraftId === draft.rawTransactionId}
+                    onClick={() => void handleConfirmEntry(entry.id)}
+                    disabled={confirmingEntryId === entry.id}
                   >
-                    {acceptingDraftId === draft.rawTransactionId ? (
+                    {confirmingEntryId === entry.id ? (
                       <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                     ) : (
                       <CheckCircle2 className="size-4" aria-hidden="true" />
@@ -368,7 +378,7 @@ export function TransactionsPage() {
             <TableBody>
                 {filteredEntries.map((entry) => {
                   const movement = getEntryMovement(entry);
-                  const confidence = entry.aiConfidence ?? 1;
+                  const confidence = entry.confidence ?? 1;
 
                   return (
                     <TableRow key={entry.id}>
@@ -390,7 +400,9 @@ export function TransactionsPage() {
                         {formatCurrency(getEntryAmount(entry))}
                       </TableCell>
                       <TableCell className="px-6 py-4">
-                        <Badge variant={confidence < 0.5 ? "warning" : "success"}>{Math.round(confidence * 100)}%</Badge>
+                        <Badge variant={entry.confidenceStatus === "uncertain" || confidence < 0.5 ? "warning" : "success"}>
+                          {entry.confidenceStatus === "uncertain" ? "검토 필요" : `${Math.round(confidence * 100)}%`}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   );
@@ -422,16 +434,18 @@ function formatConfidence(value: number | null | undefined) {
   return `${Math.round(value * 100)}%`;
 }
 
-function draftOriginLabel(origin: string) {
+function entryOriginLabel(origin: string | null | undefined) {
   const labels: Record<string, string> = {
+    ai: "AI 분류",
     ai_low_conf: "AI 검토",
-    heuristic: "규칙 기반"
+    heuristic: "규칙 기반",
+    manual: "수동 입력"
   };
 
-  return labels[origin] ?? origin;
+  return origin ? labels[origin] ?? origin : "자동 분류";
 }
 
-function getAccountLabelForDraft(accountCode: string, accountLabels: AccountLabelMap) {
+function getAccountLabelForEntry(accountCode: string, accountLabels: AccountLabelMap) {
   return accountLabels[accountCode] ?? "미지정 계정";
 }
 

@@ -77,7 +77,7 @@ export function summarizeEntries(entries: JournalEntry[]) {
         summary.moneyOut += amount;
       }
 
-      if ((entry.aiConfidence ?? 1) < 0.5) {
+      if ((entry.confidence ?? 1) < 0.5) {
         summary.lowConfidence += 1;
       }
 
@@ -122,7 +122,7 @@ export function getRelativeMonthRange(monthOffset: number) {
 }
 
 function formatLine(line: JournalLine, side: "credit" | "debit", accountLabels?: AccountLabelMap) {
-  return `${getAccountLabel(line.accountCode, accountLabels)} ${formatKrw(line[side])}원`;
+  return `${line.accountName ?? getAccountLabel(line.accountCode, accountLabels)} ${formatKrw(line[side])}원`;
 }
 
 function sumBy(lines: JournalLine[], key: "credit" | "debit") {

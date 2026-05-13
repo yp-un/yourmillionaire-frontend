@@ -181,7 +181,16 @@ export function ConnectionsPage() {
 
 		try {
 			const response = await api.startSync(selectedTenantId);
-			setWarning(`수집 요청을 접수했습니다. 실행 ID ${response.syncRunId.slice(0, 8)}의 처리 상태는 개요 화면에서 확인할 수 있습니다.`);
+			if (response.failed) {
+				setError(response.errorReason ?? "수집 파이프라인이 완료되지 못했습니다.");
+				return;
+			}
+
+			setWarning(
+				response.syncRunId
+					? `수집이 완료되었습니다. 실행 ID ${response.syncRunId.slice(0, 8)}의 처리 결과는 개요 화면에서 확인할 수 있습니다.`
+					: "수집이 완료되었습니다. 처리 결과는 개요 화면에서 확인할 수 있습니다.",
+			);
 		} catch (syncError) {
 			setError(syncError instanceof Error ? syncError.message : "수집 파이프라인을 시작하지 못했습니다.");
 		} finally {

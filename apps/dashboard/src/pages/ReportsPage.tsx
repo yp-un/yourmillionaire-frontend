@@ -24,6 +24,7 @@ import {
 
 import { useApi } from "../api/ApiProvider";
 import type {
+  AmountBreakdown,
   BalanceSheetResponse,
   CashFlowResponse,
   IncomeStatementResponse,
@@ -107,18 +108,18 @@ export function ReportsPage() {
 
         <TabsContent value="pnl">
           <div className="grid gap-4 lg:grid-cols-3">
-            <MetricCard label="매출" value={formatCurrency(pnl?.revenue.subtotal ?? 0)} tone="primary" />
-            <MetricCard label="영업비용" value={formatCurrency(pnl?.operatingExpenses.subtotal ?? 0)} tone="danger" />
-            <MetricCard label="당기순이익" value={formatCurrency(pnl?.netIncome ?? 0)} />
+            <MetricCard label="매출" value={formatCurrency(amountTotal(pnl?.revenue.subtotal))} tone="primary" />
+            <MetricCard label="영업비용" value={formatCurrency(amountTotal(pnl?.operatingExpenses.subtotal))} tone="danger" />
+            <MetricCard label="당기순이익" value={formatCurrency(amountTotal(pnl?.netIncome))} />
           </div>
           <ReportSection className="mt-4" title="영업비용 상세" items={pnl?.operatingExpenses.items ?? []} empty="집계된 영업비용이 없습니다." />
         </TabsContent>
 
         <TabsContent value="balance">
           <div className="grid gap-4 lg:grid-cols-3">
-            <MetricCard label="자산" value={formatCurrency(balanceSheet?.assets.total ?? 0)} tone="primary" />
-            <MetricCard label="부채" value={formatCurrency(balanceSheet?.liabilities.total ?? 0)} tone="warning" />
-            <MetricCard label="부채와 자본" value={formatCurrency(balanceSheet?.totalLiabilitiesAndEquity ?? 0)} />
+            <MetricCard label="자산" value={formatCurrency(amountTotal(balanceSheet?.assets.total))} tone="primary" />
+            <MetricCard label="부채" value={formatCurrency(amountTotal(balanceSheet?.liabilities.total))} tone="warning" />
+            <MetricCard label="부채와 자본" value={formatCurrency(amountTotal(balanceSheet?.totalLiabilitiesAndEquity))} />
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             <ReportSection title="유동자산" items={balanceSheet?.assets.current.items ?? []} empty="유동자산이 없습니다." />
@@ -129,9 +130,9 @@ export function ReportsPage() {
 
         <TabsContent value="cashflow">
           <div className="grid gap-4 lg:grid-cols-3">
-            <MetricCard label="기초 현금" value={formatCurrency(cashFlow?.openingCash ?? 0)} />
-            <MetricCard label="순증감" value={formatCurrency(cashFlow?.netChange ?? 0)} tone="primary" />
-            <MetricCard label="기말 현금" value={formatCurrency(cashFlow?.closingCash ?? 0)} />
+            <MetricCard label="기초 현금" value={formatCurrency(amountTotal(cashFlow?.openingCash))} />
+            <MetricCard label="순증감" value={formatCurrency(amountTotal(cashFlow?.netChange))} tone="primary" />
+            <MetricCard label="기말 현금" value={formatCurrency(amountTotal(cashFlow?.closingCash))} />
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             <ReportSection title="영업활동" items={cashFlow?.operating.items ?? []} empty="영업활동 항목이 없습니다." />
@@ -144,8 +145,10 @@ export function ReportsPage() {
           <SectionCard
             title="시산표"
             trailing={
-              <Badge variant={trialBalance?.metadata.includesUnclassifiedDrafts ? "warning" : "success"}>
-                {trialBalance?.metadata.includesUnclassifiedDrafts ? "초안 포함" : "확정 데이터"}
+              <Badge variant={(trialBalance?.metadata.uncertainEntryCount ?? 0) > 0 ? "warning" : "success"}>
+                {(trialBalance?.metadata.uncertainEntryCount ?? 0) > 0
+                  ? `검토 항목 ${trialBalance?.metadata.uncertainEntryCount}건 포함`
+                  : "확정 데이터"}
               </Badge>
             }
           >
@@ -162,9 +165,9 @@ export function ReportsPage() {
                 {(trialBalance?.rows ?? []).slice(0, 80).map((row) => (
                   <TableRow key={row.accountCode}>
                     <TableCell className="font-medium">{row.accountName}</TableCell>
-                    <TableCell className="text-right number-tabular">{formatCurrency(row.debit)}</TableCell>
-                    <TableCell className="text-right number-tabular">{formatCurrency(row.credit)}</TableCell>
-                    <TableCell className="text-right number-tabular">{formatCurrency(row.balance)}</TableCell>
+                    <TableCell className="text-right number-tabular">{formatCurrency(amountTotal(row.debit))}</TableCell>
+                    <TableCell className="text-right number-tabular">{formatCurrency(amountTotal(row.credit))}</TableCell>
+                    <TableCell className="text-right number-tabular">{formatCurrency(amountTotal(row.balance))}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -196,11 +199,15 @@ function ReportSection({
           items.map((item) => (
             <div key={item.accountCode} className="ym-panel flex items-center justify-between gap-4 px-3 py-2 text-sm">
               <span>{item.accountName}</span>
-              <span className="font-medium number-tabular">{formatCurrency(item.amount)}</span>
+              <span className="font-medium number-tabular">{formatCurrency(amountTotal(item.amount))}</span>
             </div>
           ))
         )}
       </div>
     </SectionCard>
   );
+}
+
+function amountTotal(value: AmountBreakdown | null | undefined) {
+  return value?.total ?? 0;
 }
