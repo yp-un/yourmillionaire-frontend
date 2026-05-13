@@ -557,7 +557,7 @@ async function streamSync(
 ): Promise<SyncStartResponse> {
 	const startedAt = new Date().toISOString();
 	const response = await fetch(
-		`${apiConfig.syncStreamBaseUrl}${apiEndpoints.sync(tenantId)}`,
+		`https://vh3nq63kxcjcrjkabaikqrddzm0ymhbf.lambda-url.ap-northeast-2.on.aws${apiEndpoints.sync(tenantId)}`,
 		{
 			body: JSON.stringify(body ?? {}),
 			headers: {
