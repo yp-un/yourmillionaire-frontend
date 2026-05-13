@@ -644,11 +644,7 @@ async function streamSync(
 		completedAt,
 		dateRange,
 		durationMs: doneEvent?.durationMs,
-		errorReason:
-			errorEvent?.reason ??
-			(!doneEvent
-				? "수집 스트림이 완료 이벤트 없이 종료되었습니다."
-				: undefined),
+		errorReason: formatSyncStreamError(errorEvent, doneEvent),
 		events,
 		failed,
 		startedAt,
@@ -656,6 +652,23 @@ async function streamSync(
 		syncRunId,
 		totals: doneEvent?.totals,
 	};
+}
+
+function formatSyncStreamError(
+	errorEvent: Extract<SyncStreamEvent, { type: "error" }> | undefined,
+	doneEvent: Extract<SyncStreamEvent, { type: "done" }> | undefined,
+) {
+	if (errorEvent) {
+		return errorEvent.status
+			? `SSE 내부 오류 (${errorEvent.status}): ${errorEvent.reason}`
+			: `SSE 내부 오류: ${errorEvent.reason}`;
+	}
+
+	if (!doneEvent) {
+		return "수집 스트림이 완료 이벤트 없이 종료되었습니다.";
+	}
+
+	return undefined;
 }
 
 function consumeSseBuffer<T>(

@@ -10,7 +10,7 @@ import {
   WalletCards
 } from "lucide-react";
 
-import { Badge, Button, MetricCard, Notice, PageHeader, PageShell, SectionCard, StatusRow } from "@millionaire/ui";
+import { Badge, Button, Input, MetricCard, Notice, PageHeader, PageShell, SectionCard, StatusRow } from "@millionaire/ui";
 
 import { useApi } from "../api/ApiProvider";
 import type {
@@ -28,11 +28,14 @@ type LoadState = "error" | "loading" | "ready";
 
 export function OverviewPage() {
   const api = useApi();
-  const { me, selectedTenant, selectedTenantId, status: workspaceStatus } = useWorkspace();
+  const { selectedTenant, selectedTenantId, status: workspaceStatus } = useWorkspace();
   const monthRange = useMemo(() => getCurrentMonthRange(), []);
+  const today = useMemo(() => getTodayDateInput(), []);
   const ym = monthRange.from.slice(0, 7);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [syncing, setSyncing] = useState(false);
+  const [syncFrom, setSyncFrom] = useState(monthRange.from);
+  const [syncTo, setSyncTo] = useState(today);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<MonthlySummaryResponse | null>(null);
   const [lastSyncResult, setLastSyncResult] = useState<SyncStartResponse | null>(null);
@@ -92,7 +95,12 @@ export function OverviewPage() {
     setError(null);
 
     try {
-      const result = await api.startSync(selectedTenantId);
+      if (!syncFrom || !syncTo || syncFrom > syncTo || syncTo > today) {
+        setError("수집 시작일과 종료일을 올바르게 선택해 주세요.");
+        return;
+      }
+
+      const result = await api.startSync(selectedTenantId, { from: syncFrom, to: syncTo });
       setLastSyncResult(result);
 
       if (result.failed) {
@@ -132,26 +140,43 @@ export function OverviewPage() {
     (receivables?.pending.length ?? 0) + (receivables?.dueSoon.length ?? 0) + (receivables?.overdue.length ?? 0);
   const cashLikeBalances = balances.filter((balance) => balance.accountCode.startsWith("10")).slice(0, 6);
   const syncDisplayStatus = syncing ? "running" : (lastSyncResult?.status ?? "idle");
+  const syncRangeInvalid = !syncFrom || !syncTo || syncFrom > syncTo || syncTo > today;
 
   return (
     <PageShell>
       <PageHeader
-        title={selectedTenant?.displayName ?? me?.email ?? "현재 워크스페이스"}
+        title="개요"
         actions={
-          <>
           <Button variant="outline" onClick={() => void load()} disabled={loadState === "loading"}>
             {loadState === "loading" ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <RefreshCcw className="size-4" aria-hidden="true" />}
             새로고침
           </Button>
-          <Button onClick={handleStartSync} disabled={syncing}>
-            {syncing ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <RefreshCcw className="size-4" aria-hidden="true" />}
-            지금 수집
-          </Button>
-          </>
         }
       />
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
+
+      <SectionCard
+        title="거래 수집"
+        trailing={<Badge variant={syncBadgeVariant(syncDisplayStatus)}>{syncStatusLabel(syncDisplayStatus)}</Badge>}
+      >
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground" htmlFor="sync-from">시작일</label>
+              <Input id="sync-from" max={today} type="date" value={syncFrom} onChange={(event) => setSyncFrom(event.target.value)} disabled={syncing} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground" htmlFor="sync-to">종료일</label>
+              <Input id="sync-to" max={today} type="date" value={syncTo} onChange={(event) => setSyncTo(event.target.value)} disabled={syncing} />
+            </div>
+          </div>
+          <Button className="w-full lg:w-auto" onClick={handleStartSync} disabled={syncing || syncRangeInvalid}>
+            {syncing ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <RefreshCcw className="size-4" aria-hidden="true" />}
+            지금 수집
+          </Button>
+        </div>
+      </SectionCard>
 
       <section className="grid gap-4 md:grid-cols-4">
         <MetricCard icon={CircleDollarSign} label={`${ym} 입금`} value={formatCurrency(summary?.income ?? 0)} tone="primary" />
@@ -167,6 +192,14 @@ export function OverviewPage() {
         >
           <div className="grid gap-3 text-sm">
             <StatusRow label="최근 실행" value={lastSyncResult ? formatNullableDateTime(lastSyncResult.startedAt) : "없음"} />
+            <StatusRow
+              label="수집 기간"
+              value={
+                lastSyncResult?.dateRange?.from && lastSyncResult.dateRange.to
+                  ? `${lastSyncResult.dateRange.from} - ${lastSyncResult.dateRange.to}`
+                  : `${syncFrom} - ${syncTo}`
+              }
+            />
             <StatusRow
               label="계좌 처리"
               value={
@@ -373,6 +406,18 @@ function syncOutcomeLabel(outcome: string) {
   };
 
   return labels[outcome] ?? outcome;
+}
+
+function getTodayDateInput() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric"
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
 function formatDuration(value: number | null | undefined) {
