@@ -27,8 +27,6 @@ import type {
 	FilingDraftResponse,
 	FilingRecomputeResponse,
 	FilingsUpcomingResponse,
-	FindBenefitsRequest,
-	FindBenefitsResponse,
 	FxAccount,
 	FxAccountsResponse,
 	FxRevalueResponse,
@@ -43,8 +41,6 @@ import type {
 	MonthlySummaryResponse,
 	PenaltySimulationResponse,
 	ReceivablesBoard,
-	SearchTaxLawRequest,
-	SearchTaxLawResponse,
 	SyncStartResponse,
 	SyncStreamEvent,
 	TaxInvoiceDirection,
@@ -397,18 +393,6 @@ export function createYmApi(getIdToken: GetIdToken) {
 				params,
 				url: apiEndpoints.taxInvoices(tenantId),
 			}),
-		searchTaxLaw: (tenantId: string, body: SearchTaxLawRequest) =>
-			request<SearchTaxLawResponse>({
-				data: body,
-				method: "POST",
-				url: apiEndpoints.agentSearchTaxLaw(tenantId),
-			}),
-		findBenefits: (tenantId: string, body: FindBenefitsRequest) =>
-			request<FindBenefitsResponse>({
-				data: body,
-				method: "POST",
-				url: apiEndpoints.agentFindBenefits(tenantId),
-			}),
 		runStrategy: (
 			tenantId: string,
 			scenario: TaxStrategyScenario,
@@ -513,8 +497,6 @@ export function createYmApi(getIdToken: GetIdToken) {
 		getPendingWithholding: tax.getPendingWithholding,
 		fileWithholding: tax.fileWithholding,
 		getTaxInvoices: tax.getTaxInvoices,
-		searchTaxLaw: tax.searchTaxLaw,
-		findBenefits: tax.findBenefits,
 		runTaxStrategy: tax.runStrategy,
 	};
 }

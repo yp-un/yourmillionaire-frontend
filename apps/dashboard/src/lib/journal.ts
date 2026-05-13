@@ -1,4 +1,6 @@
-import type { JournalEntry, JournalLine } from "../api/types";
+import type { AmountBreakdown, JournalEntry, JournalLine } from "../api/types";
+
+type CurrencyValue = AmountBreakdown | number | string | null | undefined;
 
 const bankAccountCodes = new Set(["1001", "1002", "1003", "1010", "1020"]);
 export type AccountLabelMap = Record<string, string>;
@@ -28,12 +30,16 @@ export const accountNames: Record<string, string> = {
   "5601": "세금과공과"
 };
 
-export function formatKrw(value: number | string | null | undefined) {
+export function formatKrw(value: CurrencyValue) {
   return new Intl.NumberFormat("ko-KR").format(Math.round(toFiniteNumber(value)));
 }
 
-export function formatCurrency(value: number | string | null | undefined) {
+export function formatCurrency(value: CurrencyValue) {
   return `₩ ${formatKrw(value)}`;
+}
+
+export function amountTotal(value: CurrencyValue) {
+  return toFiniteNumber(value);
 }
 
 export function getAccountLabel(accountCode: string, accountLabels?: AccountLabelMap) {
@@ -129,7 +135,7 @@ function sumBy(lines: JournalLine[], key: "credit" | "debit") {
   return lines.reduce((total, line) => total + toFiniteNumber(line[key]), 0);
 }
 
-function toFiniteNumber(value: number | string | null | undefined) {
+function toFiniteNumber(value: CurrencyValue) {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : 0;
   }
@@ -137,6 +143,10 @@ function toFiniteNumber(value: number | string | null | undefined) {
   if (typeof value === "string") {
     const parsed = Number(value.replace(/,/g, "").trim());
     return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  if (typeof value === "object" && value && "total" in value) {
+    return toFiniteNumber(value.total);
   }
 
   return 0;

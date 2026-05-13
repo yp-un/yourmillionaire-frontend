@@ -285,10 +285,10 @@ export type SyncStartResponse = {
 
 export type MonthlySummaryResponse = {
   ym: string;
-  income: number;
-  expense: number;
-  netCashBalance: number;
-  forecastNextMonth: number;
+  income: AmountBreakdown;
+  expense: AmountBreakdown;
+  netCashBalance: AmountBreakdown;
+  forecastNextMonth: AmountBreakdown;
   currency: "KRW";
 };
 
@@ -301,6 +301,7 @@ export type ReceivableCard = {
   amount: number;
   dueDate: string | null;
   daysOverdue: number;
+  confidenceStatus?: JournalConfidenceStatus;
 };
 
 export type ReceivablesBoard = {
@@ -320,7 +321,7 @@ export type AccountBalanceCard = {
   accountName: string;
   displayName: string;
   type: AccountType;
-  balance: number;
+  balance: AmountBreakdown;
   currency: string;
 };
 
@@ -622,51 +623,6 @@ export type TaxInvoice = {
 
 export type TaxInvoicesResponse = {
   items: TaxInvoice[];
-};
-
-export type SearchTaxLawRequest = {
-  query: string;
-  asOfDate?: string;
-  lawId?: string;
-  lawType?: "BYLAW" | "DECREE" | "INTERPRETATION" | "LAW" | "REGULATION";
-};
-
-export type SearchTaxLawResponse = {
-  answer?: string;
-  citations?: Array<Record<string, unknown>>;
-  results?: Array<Record<string, unknown>>;
-  [key: string]: unknown;
-};
-
-export type FindBenefitsRequest = {
-  asOfDate: string;
-  tenantType?: TenantType;
-  corpProfile?: {
-    industryCode: string;
-    foundedAt: string;
-    isYouthFounder: boolean;
-    hqSigungu: string;
-    priorYearRevenue: number;
-    priorYearCorpTax?: number;
-    isVentureCertified?: boolean;
-    isExternalAudit?: boolean;
-  };
-};
-
-export type FindBenefitsResponse = {
-  benefits: Array<Record<string, unknown>>;
-  asOfDate: string;
-  totalEstimatedSavings: {
-    amount: number;
-    currency: "KRW";
-  };
-  disclaimer: string;
-  verification: {
-    cacheHit: boolean;
-    kbStale: boolean;
-    lastSyncedAt: string | null;
-  };
-  pending?: string;
 };
 
 export type TaxStrategyScenario =

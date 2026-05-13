@@ -38,8 +38,6 @@ export const apiEndpoints = {
   withholdingPending: (tenantId: string) => `/tenants/${tenantId}/withholding/pending`,
   withholdingFile: (tenantId: string, withholdingId: string) => `/tenants/${tenantId}/withholding/${withholdingId}/file`,
   taxInvoices: (tenantId: string) => `/tenants/${tenantId}/tax-invoices`,
-  agentSearchTaxLaw: (tenantId: string) => `/tenants/${tenantId}/agent/search-tax-law`,
-  agentFindBenefits: (tenantId: string) => `/tenants/${tenantId}/agent/find-benefits`,
   taxStrategy: (tenantId: string) => `/tenants/${tenantId}/tax/strategy`,
   adminTaxRules: "/admin/tax-rules",
   adminTaxRuleApprove: (id: string) => `/admin/tax-rules/${id}/approve`,

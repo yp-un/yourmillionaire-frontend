@@ -4,10 +4,17 @@ import {
 	cn,
 	EmptyState,
 	Input,
+	Label,
 	MetricCard,
 	Notice,
 	PageHeader,
 	PageShell,
+	SectionCard,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
 	Table,
 	TableBody,
 	TableCell,
@@ -17,19 +24,26 @@ import {
 } from "@millionaire/ui";
 import {
 	AlertTriangle,
+	Ban,
 	BarChart3,
 	CheckCircle2,
 	ChevronDown,
 	Filter,
 	Loader2,
+	Pencil,
+	Plus,
+	Save,
 	Search,
+	X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { useApi } from "../api/ApiProvider";
 import { YmApiError } from "../api/client";
 import type {
+	AccountChartItem,
 	BankAccountBalanceSnapshot,
+	CreateJournalEntryRequest,
 	JournalEntry,
 	UncertainEntriesSummary,
 } from "../api/types";
@@ -46,6 +60,13 @@ import { useWorkspace } from "../workspace/WorkspaceProvider";
 
 type EntryFilter = "all" | "expense" | "income";
 type LoadState = "error" | "loading" | "ready";
+type JournalLineDraft = {
+	id: string;
+	accountCode: string;
+	credit: string;
+	debit: string;
+	memo: string;
+};
 
 export function TransactionsPage() {
 	const api = useApi();
@@ -57,6 +78,7 @@ export function TransactionsPage() {
 	const [accountBalances, setAccountBalances] = useState<
 		BankAccountBalanceSnapshot[]
 	>([]);
+	const [accountOptions, setAccountOptions] = useState<AccountChartItem[]>([]);
 	const [accountLabels, setAccountLabels] = useState<AccountLabelMap>({});
 	const [uncertainSummary, setUncertainSummary] =
 		useState<UncertainEntriesSummary | null>(null);
@@ -64,6 +86,21 @@ export function TransactionsPage() {
 	const [confirmingEntryId, setConfirmingEntryId] = useState<string | null>(
 		null,
 	);
+	const [discardingEntryId, setDiscardingEntryId] = useState<string | null>(
+		null,
+	);
+	const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+	const [editingLines, setEditingLines] = useState<JournalLineDraft[]>([]);
+	const [savingEditedEntryId, setSavingEditedEntryId] = useState<string | null>(
+		null,
+	);
+	const [manualOpen, setManualOpen] = useState(false);
+	const [manualEntryDate, setManualEntryDate] = useState(getTodayDateInput());
+	const [manualDescription, setManualDescription] = useState("");
+	const [manualLines, setManualLines] = useState<JournalLineDraft[]>(
+		createDefaultLineDrafts,
+	);
+	const [manualSaving, setManualSaving] = useState(false);
 	const [filter, setFilter] = useState<EntryFilter>("all");
 	const [query, setQuery] = useState("");
 	const [offset, setOffset] = useState(0);
@@ -82,15 +119,20 @@ export function TransactionsPage() {
 			const matchesQuery =
 				normalizedQuery.length === 0 ||
 				(entry.description ?? "").toLowerCase().includes(normalizedQuery) ||
-				entry.lines.some(
-					(line) =>
-						line.accountCode.includes(normalizedQuery) ||
-						(line.memo ?? "").toLowerCase().includes(normalizedQuery),
-				);
+				entry.lines.some((line) => {
+					const accountLabel = (
+						line.accountName ?? getAccountLabelForEntry(line.accountCode, accountLabels)
+					).toLowerCase();
+
+					return (
+						accountLabel.includes(normalizedQuery) ||
+						(line.memo ?? "").toLowerCase().includes(normalizedQuery)
+					);
+				});
 
 			return matchesFilter && matchesQuery;
 		});
-	}, [entries, filter, query]);
+	}, [accountLabels, entries, filter, query]);
 
 	useEffect(() => {
 		if (!selectedTenantId || workspaceStatus !== "ready") {
@@ -161,6 +203,9 @@ export function TransactionsPage() {
 			.getAccountsChart()
 			.then((response) => {
 				if (!cancelled) {
+					setAccountOptions(
+						response.accounts.filter((account) => account.isCurrent !== false),
+					);
 					setAccountLabels(
 						Object.fromEntries(
 							response.accounts.map((account) => [account.code, account.name]),
@@ -170,6 +215,7 @@ export function TransactionsPage() {
 			})
 			.catch(() => {
 				if (!cancelled) {
+					setAccountOptions([]);
 					setAccountLabels({});
 				}
 			});
@@ -198,6 +244,10 @@ export function TransactionsPage() {
 			setUncertainEntries((current) =>
 				current.filter((entry) => entry.id !== entryId),
 			);
+			if (editingEntryId === entryId) {
+				setEditingEntryId(null);
+				setEditingLines([]);
+			}
 			setUncertainSummary((current) =>
 				current
 					? { ...current, count: Math.max(current.count - 1, 0) }
@@ -213,6 +263,121 @@ export function TransactionsPage() {
 			);
 		} finally {
 			setConfirmingEntryId(null);
+		}
+	}
+
+	async function handleCreateManualEntry() {
+		if (!selectedTenantId || manualSaving) {
+			return;
+		}
+
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(manualEntryDate)) {
+			setError("분개 일자를 선택해 주세요.");
+			return;
+		}
+
+		const parsed = buildJournalLines(manualLines);
+		if (!parsed.ok) {
+			setError(parsed.message);
+			return;
+		}
+
+		setManualSaving(true);
+		setError(null);
+
+		try {
+			await api.createJournalEntry(selectedTenantId, {
+				description: manualDescription.trim() || undefined,
+				entryDate: manualEntryDate,
+				lines: parsed.lines,
+			});
+			setManualDescription("");
+			setManualEntryDate(getTodayDateInput());
+			setManualLines(createDefaultLineDrafts());
+			setManualOpen(false);
+			setOffset(0);
+			setRequestKey((current) => current + 1);
+		} catch (createError) {
+			setError(
+				createError instanceof Error
+					? createError.message
+					: "수동 분개를 저장하지 못했습니다.",
+			);
+		} finally {
+			setManualSaving(false);
+		}
+	}
+
+	function startEditingEntry(entry: JournalEntry) {
+		setEditingEntryId(entry.id);
+		setEditingLines(entry.lines.map((line) => createLineDraft(line)));
+	}
+
+	async function handleSaveEditedEntry(entryId: string) {
+		if (!selectedTenantId || savingEditedEntryId) {
+			return;
+		}
+
+		const parsed = buildJournalLines(editingLines);
+		if (!parsed.ok) {
+			setError(parsed.message);
+			return;
+		}
+
+		setSavingEditedEntryId(entryId);
+		setError(null);
+
+		try {
+			await api.updateJournalEntryLines(selectedTenantId, entryId, {
+				lines: parsed.lines,
+			});
+			setEditingEntryId(null);
+			setEditingLines([]);
+			setOffset(0);
+			setRequestKey((current) => current + 1);
+		} catch (updateError) {
+			setError(
+				updateError instanceof Error
+					? updateError.message
+					: "검토 분개를 수정하지 못했습니다.",
+			);
+		} finally {
+			setSavingEditedEntryId(null);
+		}
+	}
+
+	async function handleDiscardEntry(entryId: string) {
+		if (!selectedTenantId || discardingEntryId) {
+			return;
+		}
+
+		setDiscardingEntryId(entryId);
+		setError(null);
+
+		try {
+			await api.discardJournalEntry(selectedTenantId, entryId);
+			setUncertainEntries((current) =>
+				current.filter((entry) => entry.id !== entryId),
+			);
+			setUncertainSummary((current) =>
+				current
+					? { ...current, count: Math.max(current.count - 1, 0) }
+					: current,
+			);
+			if (editingEntryId === entryId) {
+				setEditingEntryId(null);
+				setEditingLines([]);
+			}
+			setOffset(0);
+			setRequestKey((current) => current + 1);
+		} catch (discardError) {
+			setError(
+				discardError instanceof Error
+					? discardError.message
+					: "검토 분개를 제외하지 못했습니다.",
+			);
+		} finally {
+			setDiscardingEntryId(null);
 		}
 	}
 
@@ -241,7 +406,83 @@ export function TransactionsPage() {
 
 	return (
 		<PageShell>
-			<PageHeader title="분개 원장" />
+			<PageHeader
+				title="분개 원장"
+				actions={
+					<Button
+						type="button"
+						variant={manualOpen ? "secondary" : "default"}
+						onClick={() => setManualOpen((current) => !current)}
+					>
+						{manualOpen ? (
+							<X className="size-4" aria-hidden="true" />
+						) : (
+							<Plus className="size-4" aria-hidden="true" />
+						)}
+						수동 분개
+					</Button>
+				}
+			/>
+
+			{manualOpen ? (
+				<SectionCard
+					title="수동 분개 입력"
+					trailing={<Badge variant="secondary">전문가 모드</Badge>}
+				>
+					<div className="space-y-4">
+						<div className="grid gap-3 lg:grid-cols-[12rem_minmax(0,1fr)]">
+							<div className="space-y-2">
+								<Label htmlFor="manual-entry-date">일자</Label>
+								<Input
+									id="manual-entry-date"
+									type="date"
+									value={manualEntryDate}
+									onChange={(event) => setManualEntryDate(event.target.value)}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="manual-entry-description">내용</Label>
+								<Input
+									id="manual-entry-description"
+									value={manualDescription}
+									onChange={(event) =>
+										setManualDescription(event.target.value)
+									}
+									placeholder="예: 외주 디자인 비용 지급"
+									maxLength={500}
+								/>
+							</div>
+						</div>
+
+						<JournalLineEditor
+							accountOptions={accountOptions}
+							lines={manualLines}
+							onChange={setManualLines}
+						/>
+
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<p className="text-sm text-muted-foreground">
+								차변 합계와 대변 합계가 같아야 저장됩니다.
+							</p>
+							<Button
+								type="button"
+								onClick={() => void handleCreateManualEntry()}
+								disabled={manualSaving}
+							>
+								{manualSaving ? (
+									<Loader2
+										className="size-4 animate-spin"
+										aria-hidden="true"
+									/>
+								) : (
+									<Save className="size-4" aria-hidden="true" />
+								)}
+								분개 저장
+							</Button>
+						</div>
+					</div>
+				</SectionCard>
+			) : null}
 
 			<section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 				<div className="group relative w-full max-w-2xl">
@@ -251,7 +492,7 @@ export function TransactionsPage() {
 					/>
 					<Input
 						className="h-12 border-border bg-card pl-12 focus-visible:ring-primary/20"
-						placeholder="분개 설명, 계정코드, 메모 검색"
+						placeholder="분개 설명, 계정명, 메모 검색"
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
 					/>
@@ -338,43 +579,110 @@ export function TransactionsPage() {
 												확신도 {formatConfidence(entry.confidence)}
 											</Badge>
 										</div>
-										<div className="mt-3 grid gap-2 text-sm">
-											{entry.lines.map((line) => (
-												<div
-													key={line.lineNo}
-													className="ym-panel flex flex-col gap-1 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-												>
-													<span className="font-medium text-foreground">
-														{line.accountName ??
-															getAccountLabelForEntry(
-																line.accountCode,
-																accountLabels,
-															)}
-													</span>
-													<span className="number-tabular text-muted-foreground">
-														차변 {formatCurrency(line.debit)} / 대변{" "}
-														{formatCurrency(line.credit)}
-													</span>
-												</div>
-											))}
-										</div>
-									</div>
-									<Button
-										className="shrink-0"
-										variant="outline"
-										onClick={() => void handleConfirmEntry(entry.id)}
-										disabled={confirmingEntryId === entry.id}
-									>
-										{confirmingEntryId === entry.id ? (
-											<Loader2
-												className="size-4 animate-spin"
-												aria-hidden="true"
-											/>
+										{editingEntryId === entry.id ? (
+											<div className="mt-3">
+												<JournalLineEditor
+													accountOptions={accountOptions}
+													lines={editingLines}
+													onChange={setEditingLines}
+												/>
+											</div>
 										) : (
-											<CheckCircle2 className="size-4" aria-hidden="true" />
+											<div className="mt-3 grid gap-2 text-sm">
+												{entry.lines.map((line) => (
+													<div
+														key={line.lineNo}
+														className="ym-panel flex flex-col gap-1 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+													>
+														<span className="font-medium text-foreground">
+															{line.accountName ??
+																getAccountLabelForEntry(
+																	line.accountCode,
+																	accountLabels,
+																)}
+														</span>
+														<span className="number-tabular text-muted-foreground">
+															차변 {formatCurrency(line.debit)} / 대변{" "}
+															{formatCurrency(line.credit)}
+														</span>
+													</div>
+												))}
+											</div>
 										)}
-										추천 분개 확정
-									</Button>
+									</div>
+									<div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+										{editingEntryId === entry.id ? (
+											<>
+												<Button
+													variant="outline"
+													onClick={() => void handleSaveEditedEntry(entry.id)}
+													disabled={savingEditedEntryId === entry.id}
+												>
+													{savingEditedEntryId === entry.id ? (
+														<Loader2
+															className="size-4 animate-spin"
+															aria-hidden="true"
+														/>
+													) : (
+														<Save className="size-4" aria-hidden="true" />
+													)}
+													수정 저장
+												</Button>
+												<Button
+													variant="ghost"
+													onClick={() => {
+														setEditingEntryId(null);
+														setEditingLines([]);
+													}}
+												>
+													취소
+												</Button>
+											</>
+										) : (
+											<>
+												<Button
+													variant="outline"
+													onClick={() => startEditingEntry(entry)}
+												>
+													<Pencil className="size-4" aria-hidden="true" />
+													수정
+												</Button>
+												<Button
+													variant="outline"
+													onClick={() => void handleDiscardEntry(entry.id)}
+													disabled={discardingEntryId === entry.id}
+												>
+													{discardingEntryId === entry.id ? (
+														<Loader2
+															className="size-4 animate-spin"
+															aria-hidden="true"
+														/>
+													) : (
+														<Ban className="size-4" aria-hidden="true" />
+													)}
+													제외
+												</Button>
+												<Button
+													variant="outline"
+													onClick={() => void handleConfirmEntry(entry.id)}
+													disabled={confirmingEntryId === entry.id}
+												>
+													{confirmingEntryId === entry.id ? (
+														<Loader2
+															className="size-4 animate-spin"
+															aria-hidden="true"
+														/>
+													) : (
+														<CheckCircle2
+															className="size-4"
+															aria-hidden="true"
+														/>
+													)}
+													확정
+												</Button>
+											</>
+										)}
+									</div>
 								</div>
 							</div>
 						))}
@@ -655,4 +963,242 @@ function toJournalLoadMessage(error: unknown) {
 	}
 
 	return error instanceof Error ? error.message : "분개를 불러오지 못했습니다.";
+}
+
+function JournalLineEditor({
+	accountOptions,
+	lines,
+	onChange,
+}: {
+	accountOptions: AccountChartItem[];
+	lines: JournalLineDraft[];
+	onChange: (lines: JournalLineDraft[]) => void;
+}) {
+	const totals = getDraftTotals(lines);
+	const isBalanced = totals.debit > 0 && totals.debit === totals.credit;
+
+	function updateLine(id: string, patch: Partial<JournalLineDraft>) {
+		onChange(
+			lines.map((line) => (line.id === id ? { ...line, ...patch } : line)),
+		);
+	}
+
+	function removeLine(id: string) {
+		if (lines.length <= 2) {
+			return;
+		}
+
+		onChange(lines.filter((line) => line.id !== id));
+	}
+
+	return (
+		<div className="space-y-3">
+			<div className="hidden gap-2 px-1 text-xs font-medium text-muted-foreground lg:grid lg:grid-cols-[minmax(14rem,1fr)_9rem_9rem_minmax(10rem,1fr)_2.5rem]">
+				<span>계정</span>
+				<span className="text-right">차변</span>
+				<span className="text-right">대변</span>
+				<span>메모</span>
+				<span aria-hidden="true" />
+			</div>
+			<div className="space-y-2">
+				{lines.map((line) => (
+					<div
+						key={line.id}
+						className="grid gap-2 rounded-md border bg-card p-3 lg:grid-cols-[minmax(14rem,1fr)_9rem_9rem_minmax(10rem,1fr)_2.5rem] lg:items-center lg:p-2"
+					>
+						<div className="space-y-1 lg:space-y-0">
+							<Label className="text-xs text-muted-foreground lg:hidden">
+								계정
+							</Label>
+							<Select
+								value={line.accountCode || undefined}
+								onValueChange={(accountCode) =>
+									updateLine(line.id, { accountCode })
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder="계정 선택" />
+								</SelectTrigger>
+								<SelectContent className="max-h-72">
+									{accountOptions.map((account) => (
+										<SelectItem key={account.code} value={account.code}>
+											{account.name || account.displayName}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="space-y-1 lg:space-y-0">
+							<Label className="text-xs text-muted-foreground lg:hidden">
+								차변
+							</Label>
+							<Input
+								type="text"
+								inputMode="numeric"
+								value={line.debit}
+								onChange={(event) =>
+									updateLine(line.id, { debit: event.target.value })
+								}
+								className="text-right number-tabular"
+								placeholder="0"
+							/>
+						</div>
+						<div className="space-y-1 lg:space-y-0">
+							<Label className="text-xs text-muted-foreground lg:hidden">
+								대변
+							</Label>
+							<Input
+								type="text"
+								inputMode="numeric"
+								value={line.credit}
+								onChange={(event) =>
+									updateLine(line.id, { credit: event.target.value })
+								}
+								className="text-right number-tabular"
+								placeholder="0"
+							/>
+						</div>
+						<div className="space-y-1 lg:space-y-0">
+							<Label className="text-xs text-muted-foreground lg:hidden">
+								메모
+							</Label>
+							<Input
+								value={line.memo}
+								onChange={(event) =>
+									updateLine(line.id, { memo: event.target.value })
+								}
+								placeholder="선택 입력"
+								maxLength={500}
+							/>
+						</div>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							onClick={() => removeLine(line.id)}
+							disabled={lines.length <= 2}
+							aria-label="분개 라인 삭제"
+						>
+							<X className="size-4" aria-hidden="true" />
+						</Button>
+					</div>
+				))}
+			</div>
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<Button
+					type="button"
+					variant="outline"
+					onClick={() => onChange([...lines, createLineDraft()])}
+				>
+					<Plus className="size-4" aria-hidden="true" />
+					라인 추가
+				</Button>
+				<div className="flex flex-wrap items-center gap-2 text-sm">
+					<span className="text-muted-foreground">
+						차변 {formatCurrency(totals.debit)}
+					</span>
+					<span className="text-muted-foreground">
+						대변 {formatCurrency(totals.credit)}
+					</span>
+					<Badge variant={isBalanced ? "success" : "warning"}>
+						{isBalanced ? "균형" : "불일치"}
+					</Badge>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function createDefaultLineDrafts() {
+	return [createLineDraft(), createLineDraft()];
+}
+
+function createLineDraft(
+	line?: JournalEntry["lines"][number],
+): JournalLineDraft {
+	return {
+		accountCode: line?.accountCode ?? "",
+		credit: line ? String(line.credit ?? 0) : "",
+		debit: line ? String(line.debit ?? 0) : "",
+		id: crypto.randomUUID(),
+		memo: line?.memo ?? "",
+	};
+}
+
+function buildJournalLines(
+	drafts: JournalLineDraft[],
+):
+	| { ok: true; lines: CreateJournalEntryRequest["lines"] }
+	| { ok: false; message: string } {
+	const lines = drafts.map((draft, index) => ({
+		accountCode: draft.accountCode,
+		credit: parseMoney(draft.credit),
+		debit: parseMoney(draft.debit),
+		lineNo: index + 1,
+		memo: draft.memo.trim() || null,
+	}));
+
+	if (lines.length < 2) {
+		return { ok: false, message: "분개 라인은 최소 2개가 필요합니다." };
+	}
+
+	if (lines.some((line) => !line.accountCode)) {
+		return { ok: false, message: "모든 라인의 계정을 선택해 주세요." };
+	}
+
+	if (lines.some((line) => line.debit > 0 && line.credit > 0)) {
+		return {
+			ok: false,
+			message: "한 라인에는 차변과 대변 중 하나만 입력해 주세요.",
+		};
+	}
+
+	if (lines.every((line) => line.debit === 0 && line.credit === 0)) {
+		return { ok: false, message: "차변 또는 대변 금액을 입력해 주세요." };
+	}
+
+	const totals = lines.reduce(
+		(acc, line) => ({
+			credit: acc.credit + line.credit,
+			debit: acc.debit + line.debit,
+		}),
+		{ credit: 0, debit: 0 },
+	);
+
+	if (totals.debit !== totals.credit) {
+		return {
+			ok: false,
+			message: "차변 합계와 대변 합계가 같아야 합니다.",
+		};
+	}
+
+	return { ok: true, lines };
+}
+
+function getDraftTotals(lines: JournalLineDraft[]) {
+	return lines.reduce(
+		(acc, line) => ({
+			credit: acc.credit + parseMoney(line.credit),
+			debit: acc.debit + parseMoney(line.debit),
+		}),
+		{ credit: 0, debit: 0 },
+	);
+}
+
+function parseMoney(value: string) {
+	const parsed = Number(value.replace(/,/g, "").trim());
+	return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
+}
+
+function getTodayDateInput() {
+	const parts = new Intl.DateTimeFormat("en-CA", {
+		day: "2-digit",
+		month: "2-digit",
+		timeZone: "Asia/Seoul",
+		year: "numeric",
+	}).formatToParts(new Date());
+	const value = (type: Intl.DateTimeFormatPartTypes) =>
+		parts.find((part) => part.type === type)?.value ?? "";
+
+	return `${value("year")}-${value("month")}-${value("day")}`;
 }
