@@ -4,7 +4,8 @@ const defaultSyncStreamBaseUrl =
 	"https://vh3nq63kxcjcrjkabaikqrddzm0ymhbf.lambda-url.ap-northeast-2.on.aws";
 const defaultTaxStrategyBaseUrl =
 	"https://la3losebvhzb5yrzliyopfcl6m0qikyd.lambda-url.ap-northeast-2.on.aws";
-const defaultFxStrategyBaseUrl = "";
+const defaultFxStrategyBaseUrl =
+	"https://cs5jf5syovxgbzv27kpdtq7ukq0gvqtp.lambda-url.ap-northeast-2.on.aws";
 const defaultCognitoDomain =
 	"https://yourmillionare-dev.auth.ap-northeast-2.amazoncognito.com";
 const defaultCognitoClientId = "6sop98o9dvge94bsipftmkrkeh";

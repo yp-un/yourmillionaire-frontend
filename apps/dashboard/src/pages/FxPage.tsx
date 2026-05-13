@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	Brain,
 	Loader2,
@@ -36,6 +35,10 @@ import {
 
 import { useApi } from "../api/ApiProvider";
 import type { ExchangeRate, FxAccount, FxStrategyEvent, FxStrategyScenario } from "../api/types";
+import {
+	StrategyMarkdownContent,
+	useStreamingStrategyText,
+} from "../components/StrategyOutput";
 import { formatCurrency } from "../lib/journal";
 import { useWorkspace } from "../workspace/WorkspaceProvider";
 
@@ -65,8 +68,8 @@ export function FxPage() {
 	const [strategyScenario, setStrategyScenario] =
 		useState<FxStrategyScenario>("exposure_summary");
 	const [strategyRunning, setStrategyRunning] = useState(false);
-	const [strategyText, setStrategyText] = useState("");
-	const [strategyPending, setStrategyPending] = useState<string | null>(null);
+	const [strategyEvents, setStrategyEvents] = useState<FxStrategyEvent[]>([]);
+	const strategyOutputRef = useRef<HTMLDivElement | null>(null);
 
 	const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 	const totals = useMemo(() => {
@@ -79,6 +82,31 @@ export function FxPage() {
 			{ krw: 0, usd: 0 },
 		);
 	}, [accounts]);
+	const strategyText = useMemo(
+		() =>
+			strategyEvents
+				.filter((event) => event.type === "text_delta" || event.type === "message")
+				.map((event) => event.chunk ?? "")
+				.join(""),
+		[strategyEvents],
+	);
+	const strategyFinal = useMemo(
+		() => [...strategyEvents].reverse().find((event) => event.type === "final"),
+		[strategyEvents],
+	);
+	const strategyError = useMemo(
+		() => [...strategyEvents].reverse().find((event) => event.type === "error"),
+		[strategyEvents],
+	);
+	const strategyPendingMessage = useMemo(
+		() => getStrategyPendingMessage(strategyEvents),
+		[strategyEvents],
+	);
+	const strategyOutputText = strategyText || strategyFinal?.summary || "";
+	const {
+		displayedText: displayedStrategyText,
+		setAutoScroll: setStrategyAutoScroll,
+	} = useStreamingStrategyText(strategyOutputText, strategyRunning);
 
 	async function loadFxAccounts() {
 		if (!selectedTenantId || workspaceStatus !== "ready") {
@@ -195,19 +223,17 @@ export function FxPage() {
 		}
 
 		setStrategyRunning(true);
-		setStrategyText("");
-		setStrategyPending("외화 계좌와 환율 정보를 확인하고 있습니다.");
+		setStrategyEvents([]);
 		setError(null);
 
 		try {
 			await api.runFxStrategy(selectedTenantId, strategyScenario, (event) => {
-				handleStrategyEvent(event, setStrategyText, setStrategyPending);
+				setStrategyEvents((current) => [...current, event]);
 			});
 		} catch (strategyError) {
 			setError(strategyError instanceof Error ? strategyError.message : "외환 전략을 생성하지 못했습니다.");
 		} finally {
 			setStrategyRunning(false);
-			setStrategyPending(null);
 		}
 	}
 
@@ -229,7 +255,7 @@ export function FxPage() {
 
 			{error ? <Notice tone="danger">{error}</Notice> : null}
 
-			<div className="grid gap-4 lg:grid-cols-3">
+			<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4">
 				<MetricCard label="USD 보유액" value={formatUsd(totals.usd)} tone="primary" icon={Wallet} />
 				<MetricCard label="오늘 원화 환산" value={formatCurrency(totals.krw)} />
 				<MetricCard
@@ -238,8 +264,9 @@ export function FxPage() {
 				/>
 			</div>
 
-			<div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.55fr)]">
+			<div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
 				<SectionCard
+					className="min-w-0"
 					title="외화 계좌"
 					trailing={<Badge variant="secondary">{accounts.length}개</Badge>}
 				>
@@ -330,7 +357,7 @@ export function FxPage() {
 					)}
 				</SectionCard>
 
-				<SectionCard title="USD 계좌 등록">
+				<SectionCard className="min-w-0" title="USD 계좌 등록">
 					<div className="space-y-4">
 						<div className="space-y-2">
 							<Label htmlFor="fx-bank-label">표시 이름</Label>
@@ -371,93 +398,120 @@ export function FxPage() {
 				</SectionCard>
 			</div>
 
-			<SectionCard
-				title="AI 외환 전략"
-				trailing={
-					<Select
-						value={strategyScenario}
-						onValueChange={(value) => setStrategyScenario(value as FxStrategyScenario)}
-					>
-						<SelectTrigger className="w-[12rem]">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{strategyOptions.map((option) => (
-								<SelectItem key={option.value} value={option.value}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				}
-			>
+			<SectionCard className="min-w-0" title="AI 외환 전략">
 				<div className="space-y-4">
-					<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
 						<p className="text-sm text-muted-foreground">
 							등록된 USD 잔액과 오늘 환율을 바탕으로 환전 판단과 노출 현황을 정리합니다.
 						</p>
-						<Button onClick={() => void runStrategy()} disabled={strategyRunning}>
-							{strategyRunning ? (
-								<Loader2 className="size-4 animate-spin" aria-hidden="true" />
-							) : (
-								<Sparkles className="size-4" aria-hidden="true" />
-							)}
-							분석 시작
-						</Button>
+						<div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+							<Select
+								value={strategyScenario}
+								onValueChange={(value) => setStrategyScenario(value as FxStrategyScenario)}
+							>
+								<SelectTrigger className="w-full sm:w-[12rem]">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{strategyOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Button onClick={() => void runStrategy()} disabled={strategyRunning}>
+								{strategyRunning ? (
+									<Loader2 className="size-4 animate-spin" aria-hidden="true" />
+								) : (
+									<Sparkles className="size-4" aria-hidden="true" />
+								)}
+								{strategyRunning ? "분석 중" : "분석 시작"}
+							</Button>
+						</div>
 					</div>
-					<div className="min-h-64 rounded-lg border bg-card p-5">
-						{strategyText ? (
-							<div className="whitespace-pre-wrap text-sm leading-7 text-foreground">
-								{strategyText}
-							</div>
-						) : (
-							<EmptyState icon={Brain} title="아직 생성된 외환 전략이 없습니다.">
-								분석을 시작하면 외화 보유액, 원화 환산액, 환전 판단 기준을 순서대로 보여줍니다.
-							</EmptyState>
-						)}
-						{strategyPending ? (
-							<p className="ym-shimmer-text mt-4 text-sm font-medium">
-								{strategyPending}
-							</p>
-						) : null}
-					</div>
+					{strategyError ? (
+						<Notice tone="danger">
+							{strategyError.reason ?? "외환 전략 분석 중 오류가 발생했습니다."}
+						</Notice>
+					) : null}
+					{displayedStrategyText || strategyRunning ? (
+						<StrategyMarkdownContent
+							bottomRef={strategyOutputRef}
+							content={displayedStrategyText}
+							pending={
+								strategyRunning &&
+								displayedStrategyText.length >= strategyOutputText.length
+							}
+							pendingMessage={strategyPendingMessage}
+							onAutoScrollChange={setStrategyAutoScroll}
+						/>
+					) : (
+						<EmptyState icon={Brain} title="아직 생성된 외환 전략이 없습니다.">
+							분석을 시작하면 외화 보유액, 원화 환산액, 환전 판단 기준을 순서대로 보여줍니다.
+						</EmptyState>
+					)}
 				</div>
 			</SectionCard>
 		</PageShell>
 	);
 }
 
-function handleStrategyEvent(
-	event: FxStrategyEvent,
-	setStrategyText: Dispatch<SetStateAction<string>>,
-	setStrategyPending: Dispatch<SetStateAction<string | null>>,
-) {
-	if ((event.type === "text_delta" || event.type === "message") && event.chunk) {
-		setStrategyText((previous) => previous + event.chunk);
-		setStrategyPending(null);
-		return;
+function getStrategyPendingMessage(events: FxStrategyEvent[]) {
+	const latestUsefulEvent = [...events]
+		.reverse()
+		.find((event) =>
+			["context_ready", "started", "tool_call", "tool_result"].includes(
+				event.type,
+			),
+		);
+
+	if (!latestUsefulEvent) {
+		return "분석 중...";
 	}
 
-	if (event.type === "tool_call") {
-		const input = event.input as { query?: string } | undefined;
-		setStrategyPending(input?.query ?? "필요한 기준 데이터를 확인하고 있습니다.");
-		return;
+	if (latestUsefulEvent.type === "started") {
+		return "외환 전략 분석을 준비하고 있습니다.";
 	}
 
-	if (event.type === "tool_result" && event.summary) {
-		setStrategyPending(event.summary);
-		return;
+	if (latestUsefulEvent.type === "context_ready") {
+		return "외화 계좌와 환율 데이터를 정리했습니다.";
 	}
 
-	if (event.type === "context_ready") {
-		setStrategyPending("외화 계좌와 환율 데이터를 정리했습니다.");
-		return;
+	if (latestUsefulEvent.type === "tool_result") {
+		return (
+			latestUsefulEvent.summary ?? "확인한 내용을 답변에 반영하고 있습니다."
+		);
 	}
 
-	if (event.type === "final" && typeof event.summary === "string") {
-		setStrategyText(event.summary);
-		setStrategyPending(null);
+	if (latestUsefulEvent.type === "tool_call") {
+		return getToolCallMessage(latestUsefulEvent);
 	}
+
+	return "분석 중...";
+}
+
+function getToolCallMessage(event: FxStrategyEvent) {
+	const input = isRecord(event.input) ? event.input : {};
+	const query = typeof input.query === "string" ? input.query : null;
+
+	if (query) {
+		return `${query} 내용을 확인하고 있습니다.`;
+	}
+
+	if (event.name?.includes("rate") || event.name?.includes("exchange")) {
+		return "환율 기준 데이터를 확인하고 있습니다.";
+	}
+
+	if (event.name?.includes("account") || event.name?.includes("exposure")) {
+		return "외화 계좌와 노출 규모를 확인하고 있습니다.";
+	}
+
+	return "답변에 필요한 추가 정보를 확인하고 있습니다.";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
 }
 
 function parseAmount(value: string) {

@@ -535,61 +535,13 @@ async function streamTaxStrategy(
 	scenario: TaxStrategyScenario,
 	onEvent?: (event: TaxStrategyEvent) => void,
 ) {
-	const response = await fetch(
-		`${apiConfig.taxStrategyBaseUrl}${apiEndpoints.taxStrategy(tenantId)}`,
-		{
-			body: JSON.stringify({ tenantId, scenario }),
-			headers: {
-				Accept: "text/event-stream",
-				Authorization: `Bearer ${await getIdToken()}`,
-				"Cache-Control": "no-cache",
-				"Content-Type": "application/json",
-			},
-			method: "POST",
-		},
-	);
-
-	if (!response.ok) {
-		throw new YmApiError(await responseErrorMessage(response), response.status);
-	}
-
-	if (!response.body) {
-		throw new YmApiError(
-			"세무 전략 API 응답 스트림이 비어 있습니다.",
-			response.status,
-		);
-	}
-
-	const events: TaxStrategyEvent[] = [];
-	const emit = (event: TaxStrategyEvent) => {
-		events.push(event);
-		onEvent?.(event);
-	};
-	const reader = response.body.getReader();
-	const decoder = new TextDecoder();
-	let buffer = "";
-
-	while (true) {
-		const { done, value } = await reader.read();
-
-		if (done) {
-			break;
-		}
-
-		buffer += decoder.decode(value, { stream: true });
-		buffer = consumeSseBuffer<TaxStrategyEvent>(buffer, emit, (data) => ({
-			type: "message",
-			chunk: data,
-		}));
-	}
-
-	buffer += decoder.decode();
-	consumeSseBuffer<TaxStrategyEvent>(`${buffer}\n\n`, emit, (data) => ({
-		type: "message",
-		chunk: data,
-	}));
-
-	return events;
+	return streamStrategyEvents<TaxStrategyEvent>({
+		body: { tenantId, scenario },
+		emptyStreamMessage: "세무 전략 API 응답 스트림이 비어 있습니다.",
+		getIdToken,
+		onEvent,
+		url: `${apiConfig.taxStrategyBaseUrl}${apiEndpoints.taxStrategy(tenantId)}`,
+	});
 }
 
 async function streamFxStrategy(
@@ -598,40 +550,49 @@ async function streamFxStrategy(
 	scenario: FxStrategyScenario,
 	onEvent?: (event: FxStrategyEvent) => void,
 ) {
-	if (!apiConfig.fxStrategyBaseUrl) {
-		throw new YmApiError(
-			"외환 전략 API URL이 설정되지 않았습니다. VITE_FX_STRATEGY_URL에 백엔드 CDK 출력값 FxStrategyFnUrl을 넣어 주세요.",
-			0,
-		);
-	}
+	return streamStrategyEvents<FxStrategyEvent>({
+		body: { tenantId, scenario },
+		emptyStreamMessage: "외환 전략 API 응답 스트림이 비어 있습니다.",
+		getIdToken,
+		onEvent,
+		url: `${apiConfig.fxStrategyBaseUrl}${apiEndpoints.fxStrategy(tenantId)}`,
+	});
+}
 
-	const response = await fetch(
-		`${apiConfig.fxStrategyBaseUrl}${apiEndpoints.fxStrategy(tenantId)}`,
-		{
-			body: JSON.stringify({ tenantId, scenario }),
-			headers: {
-				Accept: "text/event-stream",
-				Authorization: `Bearer ${await getIdToken()}`,
-				"Cache-Control": "no-cache",
-				"Content-Type": "application/json",
-			},
-			method: "POST",
+async function streamStrategyEvents<T>({
+	body,
+	emptyStreamMessage,
+	getIdToken,
+	onEvent,
+	url,
+}: {
+	body: Record<string, unknown>;
+	emptyStreamMessage: string;
+	getIdToken: GetIdToken;
+	onEvent?: (event: T) => void;
+	url: string;
+}) {
+	const response = await fetch(url, {
+		body: JSON.stringify(body),
+		headers: {
+			Accept: "text/event-stream",
+			Authorization: `Bearer ${await getIdToken()}`,
+			"Cache-Control": "no-cache",
+			"Content-Type": "application/json",
 		},
-	);
+		method: "POST",
+	});
 
 	if (!response.ok) {
 		throw new YmApiError(await responseErrorMessage(response), response.status);
 	}
 
 	if (!response.body) {
-		throw new YmApiError(
-			"외환 전략 API 응답 스트림이 비어 있습니다.",
-			response.status,
-		);
+		throw new YmApiError(emptyStreamMessage, response.status);
 	}
 
-	const events: FxStrategyEvent[] = [];
-	const emit = (event: FxStrategyEvent) => {
+	const events: T[] = [];
+	const emit = (event: T) => {
 		events.push(event);
 		onEvent?.(event);
 	};
@@ -647,17 +608,17 @@ async function streamFxStrategy(
 		}
 
 		buffer += decoder.decode(value, { stream: true });
-		buffer = consumeSseBuffer<FxStrategyEvent>(buffer, emit, (data) => ({
+		buffer = consumeSseBuffer<T>(buffer, emit, (data) => ({
 			type: "message",
 			chunk: data,
-		}));
+		}) as T);
 	}
 
 	buffer += decoder.decode();
-	consumeSseBuffer<FxStrategyEvent>(`${buffer}\n\n`, emit, (data) => ({
+	consumeSseBuffer<T>(`${buffer}\n\n`, emit, (data) => ({
 		type: "message",
 		chunk: data,
-	}));
+	}) as T);
 
 	return events;
 }
