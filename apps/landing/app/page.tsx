@@ -96,7 +96,7 @@ export default function Home() {
 					<nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
 						<Link href="#persona">대상 사용자</Link>
 						<Link href="#workflow">사용 흐름</Link>
-						<Link href="#security">보안</Link>
+						<Link href="#features">기능</Link>
 					</nav>
 					<Button asChild size="sm">
 						<Link href={DASHBOARD_URL}>
