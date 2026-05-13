@@ -270,6 +270,33 @@
     border-radius: 0.6875rem;
   }
 
+  .ym-shimmer-text {
+    color: var(--ym-ink-muted);
+    background: linear-gradient(
+      90deg,
+      var(--ym-ink-muted) 0%,
+      var(--ym-ink-muted) 35%,
+      var(--ym-ink) 50%,
+      var(--ym-ink-muted) 65%,
+      var(--ym-ink-muted) 100%
+    );
+    background-size: 220% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    animation: ym-shimmer-text 1.6s ease-in-out infinite;
+    -webkit-text-fill-color: transparent;
+  }
+
+  @keyframes ym-shimmer-text {
+    from {
+      background-position: 120% 0;
+    }
+
+    to {
+      background-position: -120% 0;
+    }
+  }
+
   input[type="date"] {
     position: relative;
     padding-right: 2.75rem;

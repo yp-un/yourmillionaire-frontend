@@ -207,7 +207,7 @@ export type SyncStreamAccountEvent = {
 export type SyncStreamEvent =
   | {
       type: "heartbeat";
-      ts: string;
+      ts: number | string;
     }
   | {
       type: "run-started";
@@ -222,7 +222,14 @@ export type SyncStreamEvent =
   | {
       type: "classification";
       rawTransactionId: string;
-      sourceAccount: string | null;
+      sourceAccount:
+        | {
+            bankAccountId: string;
+            organization: string;
+            accountNumberMasked: string | null;
+          }
+        | string
+        | null;
       occurredAt: string;
       entryDate: string;
       counterparty: string | null;
@@ -243,8 +250,9 @@ export type SyncStreamEvent =
     }
   | {
       type: "error";
-      status: number;
+      status?: number;
       reason: string;
+      recoverable?: boolean;
     }
   | {
       type: "done";
