@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { BarChart3, ChevronDown, Filter, Loader2, Search } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, Filter, Loader2, Search } from "lucide-react";
 
 import {
   Badge,
@@ -21,7 +21,7 @@ import {
 
 import { useApi } from "../api/ApiProvider";
 import { YmApiError } from "../api/client";
-import type { AccountBalanceCard, JournalEntry, PendingDrafts } from "../api/types";
+import type { BankAccountBalanceSnapshot, JournalEntry, JournalEntryDraft, PendingDrafts } from "../api/types";
 import {
   formatCurrency,
   formatJournalLines,
@@ -43,9 +43,11 @@ export function TransactionsPage() {
   const [from, setFrom] = useState(defaultRange.from);
   const [to, setTo] = useState(defaultRange.to);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [accountBalances, setAccountBalances] = useState<AccountBalanceCard[]>([]);
+  const [accountBalances, setAccountBalances] = useState<BankAccountBalanceSnapshot[]>([]);
   const [accountLabels, setAccountLabels] = useState<AccountLabelMap>({});
   const [pendingDrafts, setPendingDrafts] = useState<PendingDrafts | null>(null);
+  const [drafts, setDrafts] = useState<JournalEntryDraft[]>([]);
+  const [acceptingDraftId, setAcceptingDraftId] = useState<string | null>(null);
   const [filter, setFilter] = useState<EntryFilter>("all");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -90,10 +92,16 @@ export function TransactionsPage() {
           offset
         });
 
+        const nextDrafts =
+          response.pendingDrafts && response.pendingDrafts.count > 0
+            ? await api.getJournalDrafts(tenantId).catch(() => ({ drafts: [] }))
+            : { drafts: [] };
+
         if (!cancelled) {
           setEntries((current) => (offset === 0 ? response.entries : [...current, ...response.entries]));
           setAccountBalances(response.accountBalances ?? []);
           setPendingDrafts(response.pendingDrafts ?? null);
+          setDrafts(nextDrafts.drafts);
           setHasMore(response.entries.length === limit);
           setLoadState("ready");
         }
@@ -143,11 +151,35 @@ export function TransactionsPage() {
     setRequestKey((current) => current + 1);
   }
 
+  async function handleAcceptDraft(rawTransactionId: string) {
+    if (!selectedTenantId) {
+      return;
+    }
+
+    setAcceptingDraftId(rawTransactionId);
+    setError(null);
+
+    try {
+      await api.acceptJournalDraft(selectedTenantId, rawTransactionId);
+      setDrafts((current) => current.filter((draft) => draft.rawTransactionId !== rawTransactionId));
+      setPendingDrafts((current) =>
+        current ? { ...current, count: Math.max(current.count - 1, 0) } : current
+      );
+      setOffset(0);
+      setRequestKey((current) => current + 1);
+    } catch (acceptError) {
+      setError(acceptError instanceof Error ? acceptError.message : "검토 초안을 확정하지 못했습니다.");
+    } finally {
+      setAcceptingDraftId(null);
+    }
+  }
+
   const stats = [
     { label: "조회 범위 입금", value: formatCurrency(summary.moneyIn), tone: "primary" as const },
     { label: "조회 범위 출금", value: formatCurrency(summary.moneyOut), tone: "danger" as const },
     { label: "순현금흐름", value: formatCurrency(summary.moneyIn - summary.moneyOut), tone: "default" as const }
   ];
+  const hasPendingDrafts = Boolean(pendingDrafts && pendingDrafts.count > 0 && drafts.length > 0);
 
   return (
     <PageShell>
@@ -201,8 +233,67 @@ export function TransactionsPage() {
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
-      {pendingDrafts && pendingDrafts.count > 0 ? (
-        <Notice tone="warning">{pendingDrafts.message}</Notice>
+      {hasPendingDrafts && pendingDrafts ? (
+        <Notice tone="warning">
+          <div className="flex gap-2">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div>
+              <p>{pendingDrafts.message}</p>
+              <p className="mt-1 text-xs opacity-80">검토 대상 {drafts.length}건</p>
+            </div>
+          </div>
+        </Notice>
+      ) : null}
+
+      {hasPendingDrafts && pendingDrafts ? (
+        <section className="ym-surface space-y-4 p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-base font-semibold tracking-normal">검토 필요한 거래</h3>
+              <p className="mt-1 text-sm text-muted-foreground">추천 분개를 확인한 뒤 그대로 확정할 수 있습니다.</p>
+            </div>
+            <Badge variant="warning">{drafts.length}건 대기</Badge>
+          </div>
+
+          <div className="grid gap-3">
+            {drafts.map((draft) => (
+              <div key={draft.rawTransactionId} className="rounded-md border bg-card p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-foreground">{draft.createdAt.slice(0, 10)}</span>
+                      <Badge variant="outline">{draftOriginLabel(draft.origin)}</Badge>
+                      <Badge variant="warning">확신도 {formatConfidence(draft.aiConfidence ?? draft.heuristicConfidence)}</Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm">
+                      {draft.draftLines.map((line) => (
+                        <div key={line.lineNo} className="ym-panel flex flex-col gap-1 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="font-medium text-foreground">{getAccountLabelForDraft(line.accountCode, accountLabels)}</span>
+                          <span className="number-tabular text-muted-foreground">
+                            차변 {formatCurrency(line.debit)} / 대변 {formatCurrency(line.credit)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    className="shrink-0"
+                    variant="outline"
+                    onClick={() => void handleAcceptDraft(draft.rawTransactionId)}
+                    disabled={acceptingDraftId === draft.rawTransactionId}
+                  >
+                    {acceptingDraftId === draft.rawTransactionId ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <CheckCircle2 className="size-4" aria-hidden="true" />
+                    )}
+                    추천 분개 확정
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -219,9 +310,16 @@ export function TransactionsPage() {
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             {accountBalances.slice(0, 3).map((balance) => (
-              <div key={balance.accountCode} className="ym-surface p-4">
-                <p className="text-sm font-medium text-muted-foreground">{balance.displayName || balance.accountName}</p>
-                <p className="mt-2 text-xl font-semibold number-tabular">{formatCurrency(balance.balance)}</p>
+              <div key={balance.id} className="ym-surface p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-sm font-medium text-muted-foreground">{bankLabel(balance.organization)}</p>
+                  {balance.isStale ? <Badge variant="warning">갱신 필요</Badge> : <Badge variant="success">최신</Badge>}
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground number-tabular">{balance.accountNumber}</p>
+                <p className="mt-2 text-xl font-semibold number-tabular">{formatCurrency(balance.currentBalance)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  출금 가능 {formatCurrency(balance.withdrawable)} · {formatNullableDateTime(balance.syncedAt)}
+                </p>
               </div>
             ))}
           </div>
@@ -277,7 +375,7 @@ export function TransactionsPage() {
                       <TableCell className="px-6 py-4 text-sm text-muted-foreground number-tabular">{entry.entryDate}</TableCell>
                       <TableCell className="max-w-[260px] px-6 py-4">
                         <p className="truncate font-semibold text-foreground">{entry.description ?? "거래 분개"}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{entry.source === "codef_bank" ? "CODEF 자동 수집" : "수동 입력"}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{entry.source === "codef_bank" ? "은행 자동 수집" : "수동 입력"}</p>
                       </TableCell>
                       <TableCell className="max-w-[360px] px-6 py-4 text-sm leading-6 text-muted-foreground">
                         <span className="line-clamp-2">{formatJournalLines(entry, accountLabels)}</span>
@@ -314,6 +412,48 @@ export function TransactionsPage() {
       </section>
     </PageShell>
   );
+}
+
+function formatConfidence(value: number | null | undefined) {
+  if (value === null || value === undefined) {
+    return "없음";
+  }
+
+  return `${Math.round(value * 100)}%`;
+}
+
+function draftOriginLabel(origin: string) {
+  const labels: Record<string, string> = {
+    ai_low_conf: "AI 검토",
+    heuristic: "규칙 기반"
+  };
+
+  return labels[origin] ?? origin;
+}
+
+function getAccountLabelForDraft(accountCode: string, accountLabels: AccountLabelMap) {
+  return accountLabels[accountCode] ?? "미지정 계정";
+}
+
+function bankLabel(organization: string) {
+  const labels: Record<string, string> = {
+    "0011": "NH농협은행",
+    "0012": "지역농축협",
+    "0088": "신한은행"
+  };
+
+  return labels[organization] ?? organization;
+}
+
+function formatNullableDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "동기화 전";
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "short",
+    timeStyle: "short"
+  }).format(new Date(value));
 }
 
 function FilterButton({

@@ -93,8 +93,19 @@ export type JournalEntry = {
 
 export type JournalEntriesResponse = {
   entries: JournalEntry[];
-  accountBalances?: AccountBalanceCard[];
+  accountBalances?: BankAccountBalanceSnapshot[];
   pendingDrafts?: PendingDrafts;
+};
+
+export type BankAccountBalanceSnapshot = {
+  id: string;
+  organization: string;
+  accountNumber: string;
+  currentBalance: ApiNumber | null;
+  withdrawable: ApiNumber | null;
+  currency: "KRW";
+  syncedAt: string | null;
+  isStale: boolean;
 };
 
 export type JournalEntriesQuery = {
@@ -144,10 +155,14 @@ export type PendingDrafts = {
   reviewEndpoint: string;
 };
 
+export type SyncRunStatus = "completed" | "failed" | "queued" | "running" | "timed_out";
+
 export type SyncStartResponse = {
+  syncRunId: string;
+  status: SyncRunStatus;
+  pollUrl: string;
   executionArn: string;
   startDate: string;
-  status: "RUNNING" | string;
 };
 
 export type SyncStatusResponse = {
@@ -156,7 +171,63 @@ export type SyncStatusResponse = {
   classified: number;
   lastFetchedAt: string | null;
   lastClassifiedAt: string | null;
-  status?: "done" | "running" | "pending" | string;
+  status?: "classifying" | "done" | "fetching" | "idle" | string;
+};
+
+export type SyncRunAccountOutcome = "balance_only" | "codef_error" | "empty_result" | "no_connection" | "success";
+
+export type SyncRunSummary = {
+  id: string;
+  tenantId: string;
+  triggeredBy: "manual" | "schedule";
+  triggeredAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  status: SyncRunStatus;
+  totalAccounts: number;
+  successCount: number;
+  errorCount: number;
+  emptyCount: number;
+  userSummary: string | null;
+};
+
+export type SyncRunAccountSummary = {
+  organization: string;
+  accountNumber: string | null;
+  outcome: SyncRunAccountOutcome;
+  codefErrorCode: string | null;
+  codefErrorMessage: string | null;
+  userMessage: string | null;
+  fetchedCount: number;
+  balanceUpdated: boolean;
+  recordedAt: string;
+};
+
+export type SyncRunDetail = SyncRunSummary & {
+  accounts: SyncRunAccountSummary[];
+};
+
+export type SyncRunsResponse = {
+  runs: SyncRunSummary[];
+};
+
+export type LatestSyncRunResponse = SyncRunDetail | { run: null; accounts: [] };
+
+export type AcceptDraftRequest = {
+  correctedLines?: Array<{
+    lineNo: number;
+    accountCode: string;
+    debit: number;
+    credit: number;
+    memo?: string | null;
+  }>;
+};
+
+export type AcceptDraftResponse = {
+  journalEntryId: string;
+  status: "posted" | string;
+  entryDate: string;
+  origin: "ai_low_conf" | "heuristic" | string;
 };
 
 export type MonthlySummaryResponse = {
@@ -208,8 +279,11 @@ export type JournalEntryDraft = {
   rawTransactionId: string;
   tenantId: string;
   draftLines: JournalLine[];
+  origin: "ai_low_conf" | "heuristic" | string;
+  aiConfidence: number | null;
   heuristicConfidence: number | null;
   ruleId: string | null;
+  status: "accepted" | "discarded" | "pending" | string;
   createdAt: string;
 };
 
@@ -495,6 +569,34 @@ export type FindBenefitsResponse = {
     lastSyncedAt: string | null;
   };
   pending?: string;
+};
+
+export type TaxStrategyScenario =
+  | "applicable_benefits"
+  | "penalty_risk_check"
+  | "upcoming_deadlines"
+  | "vat_quarter_review"
+  | "yearly_filing_check";
+
+export type TaxStrategyEvent = {
+  type: string;
+  chunk?: string;
+  durationMs?: number;
+  input?: unknown;
+  keys?: string[];
+  metadata?: Record<string, unknown>;
+  name?: string;
+  reason?: string;
+  recoverable?: boolean;
+  runId?: string;
+  scenario?: TaxStrategyScenario | string;
+  summary?: string;
+  tokens?: {
+    input?: number;
+    output?: number;
+  };
+  toolCalls?: number;
+  [key: string]: unknown;
 };
 
 export type AdminTaxRulesResponse = {

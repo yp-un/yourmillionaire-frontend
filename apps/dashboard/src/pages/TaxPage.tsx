@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bot, Loader2, ReceiptText, Save, Search } from "lucide-react";
+import { Loader2, ReceiptText, Save, Sparkles } from "lucide-react";
 
 import {
   Badge,
@@ -21,8 +21,7 @@ import {
   Tabs,
   TabsContent,
   TabsList,
-  TabsTrigger,
-  Textarea
+  TabsTrigger
 } from "@millionaire/ui";
 
 import { useApi } from "../api/ApiProvider";
@@ -30,9 +29,9 @@ import { YmApiError } from "../api/client";
 import type {
   CorporationProfile,
   FilingObligation,
-  FindBenefitsResponse,
-  SearchTaxLawResponse,
   TaxInvoice,
+  TaxStrategyEvent,
+  TaxStrategyScenario,
   WithholdingItem
 } from "../api/types";
 import { formatCurrency, getCurrentMonthRange } from "../lib/journal";
@@ -66,9 +65,39 @@ const emptyProfileForm: ProfileForm = {
   withholdingCadence: "MONTHLY"
 };
 
+const taxStrategyScenarios: Array<{ label: string; value: TaxStrategyScenario }> = [
+  { label: "적용 가능 세제 혜택", value: "applicable_benefits" },
+  { label: "다가오는 신고 마감", value: "upcoming_deadlines" },
+  { label: "연간 신고 점검", value: "yearly_filing_check" },
+  { label: "부가세 분기 점검", value: "vat_quarter_review" },
+  { label: "가산세 위험 점검", value: "penalty_risk_check" }
+];
+
+const regionOptions = [
+  { label: "수도권 과밀억제권역", value: "METRO_OVERCROWDED" },
+  { label: "수도권 비과밀권역", value: "METRO_NON_OVERCROWDED" },
+  { label: "비수도권", value: "NON_METRO" }
+];
+
+const industryOptions = [
+  { label: "소프트웨어 개발 및 공급업", value: "62010" },
+  { label: "컴퓨터 프로그래밍 서비스업", value: "62021" },
+  { label: "컴퓨터 시스템 통합 자문 및 구축 서비스업", value: "62022" },
+  { label: "자료 처리, 호스팅 및 관련 서비스업", value: "63110" },
+  { label: "포털 및 기타 인터넷 정보매개 서비스업", value: "63120" },
+  { label: "연구개발업", value: "70000" },
+  { label: "제조업", value: "30000" },
+  { label: "전문 디자인업", value: "73200" }
+];
+
+const fiscalYearStartMonthOptions = Array.from({ length: 12 }, (_, index) => {
+  const month = String(index + 1);
+  return { label: `${month}월`, value: month };
+});
+
 export function TaxPage() {
   const api = useApi();
-  const { me, selectedTenantId, status: workspaceStatus } = useWorkspace();
+  const { selectedTenantId, status: workspaceStatus } = useWorkspace();
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
   const [profile, setProfile] = useState<CorporationProfile | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
@@ -77,12 +106,16 @@ export function TaxPage() {
   const [invoices, setInvoices] = useState<TaxInvoice[]>([]);
   const [invoiceFrom, setInvoiceFrom] = useState(defaultRange.from);
   const [invoiceTo, setInvoiceTo] = useState(defaultRange.to);
-  const [taxQuery, setTaxQuery] = useState("");
-  const [taxLawResult, setTaxLawResult] = useState<SearchTaxLawResponse | null>(null);
-  const [benefits, setBenefits] = useState<FindBenefitsResponse | null>(null);
+  const [strategyScenario, setStrategyScenario] = useState<TaxStrategyScenario>("applicable_benefits");
+  const [strategyEvents, setStrategyEvents] = useState<TaxStrategyEvent[]>([]);
+  const [strategyRunning, setStrategyRunning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const strategyText = useMemo(() => strategyEvents.filter((event) => event.type === "text_delta").map((event) => event.chunk ?? "").join(""), [strategyEvents]);
+  const strategyFinal = useMemo(() => [...strategyEvents].reverse().find((event) => event.type === "final"), [strategyEvents]);
+  const strategyError = useMemo(() => [...strategyEvents].reverse().find((event) => event.type === "error"), [strategyEvents]);
+  const profileDirty = useMemo(() => !isSameProfileForm(profileForm, profileToForm(profile)), [profile, profileForm]);
 
   async function loadTaxData() {
     if (!selectedTenantId || workspaceStatus !== "ready") {
@@ -141,55 +174,23 @@ export function TaxPage() {
     }
   }
 
-  async function handleSearchTaxLaw() {
-    if (!selectedTenantId || !taxQuery.trim()) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await api.searchTaxLaw(selectedTenantId, {
-        query: taxQuery.trim(),
-        asOfDate: new Date().toISOString().slice(0, 10)
-      });
-      setTaxLawResult(result);
-    } catch (searchError) {
-      setError(toTaxErrorMessage(searchError, "세법 검색을 실행하지 못했습니다."));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleFindBenefits() {
+  async function handleRunTaxStrategy() {
     if (!selectedTenantId) {
       return;
     }
 
-    setLoading(true);
+    setStrategyRunning(true);
+    setStrategyEvents([]);
     setError(null);
 
     try {
-      const result = await api.findBenefits(selectedTenantId, {
-        asOfDate: new Date().toISOString().slice(0, 10),
-        tenantType: me?.tenantType ?? "corporation",
-        corpProfile: {
-          foundedAt: profileForm.foundedOn || "2025-01-01",
-          hqSigungu: profileForm.regionCode || "UNKNOWN",
-          industryCode: profileForm.industryCode || "6201",
-          isExternalAudit: profileForm.isExternalAudit,
-          isVentureCertified: profileForm.isVentureCertified,
-          isYouthFounder: profileForm.isYouthFounder,
-          priorYearCorpTax: Number(profileForm.priorYearCorpTax || 0),
-          priorYearRevenue: Number(profileForm.priorYearRevenue || 0)
-        }
+      await api.runTaxStrategy(selectedTenantId, strategyScenario, (event) => {
+        setStrategyEvents((current) => [...current, event]);
       });
-      setBenefits(result);
-    } catch (benefitError) {
-      setError(toTaxErrorMessage(benefitError, "혜택 탐색을 실행하지 못했습니다."));
+    } catch (runError) {
+      setError(toTaxErrorMessage(runError, "세무 전략 점검을 실행하지 못했습니다."));
     } finally {
-      setLoading(false);
+      setStrategyRunning(false);
     }
   }
 
@@ -217,12 +218,12 @@ export function TaxPage() {
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
       <Tabs defaultValue="profile" className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-1 min-[420px]:grid-cols-2 lg:w-auto lg:grid-cols-5">
-          <TabsTrigger value="profile">회사 프로필</TabsTrigger>
-          <TabsTrigger value="filings">신고</TabsTrigger>
-          <TabsTrigger value="withholding">원천세</TabsTrigger>
-          <TabsTrigger value="invoices">세금계산서</TabsTrigger>
-          <TabsTrigger value="agent">AI 세무</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-1 rounded-lg min-[420px]:grid-cols-2 sm:rounded-lg md:grid-cols-5 lg:w-auto">
+          <TabsTrigger className="rounded-md" value="profile">회사 프로필</TabsTrigger>
+          <TabsTrigger className="rounded-md" value="filings">신고</TabsTrigger>
+          <TabsTrigger className="rounded-md" value="withholding">원천세</TabsTrigger>
+          <TabsTrigger className="rounded-md" value="invoices">세금계산서</TabsTrigger>
+          <TabsTrigger className="rounded-md" value="agent">AI 세무</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -237,11 +238,39 @@ export function TaxPage() {
               <Field label="설립일">
                 <Input type="date" value={profileForm.foundedOn} onChange={(event) => updateProfileForm("foundedOn", event.target.value)} />
               </Field>
-              <Field label="지역 코드">
-                <Input value={profileForm.regionCode} placeholder="NON_METRO" onChange={(event) => updateProfileForm("regionCode", event.target.value)} />
+              <Field label="본점 소재지">
+                <Select value={profileForm.regionCode} onValueChange={(value) => updateProfileForm("regionCode", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="지역 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {profileForm.regionCode && !regionOptions.some((option) => option.value === profileForm.regionCode) ? (
+                      <SelectItem value={profileForm.regionCode}>저장된 지역</SelectItem>
+                    ) : null}
+                    {regionOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
-              <Field label="업종 코드">
-                <Input value={profileForm.industryCode} placeholder="6201" onChange={(event) => updateProfileForm("industryCode", event.target.value)} />
+              <Field label="업종">
+                <Select value={profileForm.industryCode} onValueChange={(value) => updateProfileForm("industryCode", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="업종 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {profileForm.industryCode && !industryOptions.some((option) => option.value === profileForm.industryCode) ? (
+                      <SelectItem value={profileForm.industryCode}>저장된 업종</SelectItem>
+                    ) : null}
+                    {industryOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
               <Field label="원천세 신고 주기">
                 <Select value={profileForm.withholdingCadence} onValueChange={(value) => updateProfileForm("withholdingCadence", value as ProfileForm["withholdingCadence"])}>
@@ -255,16 +284,36 @@ export function TaxPage() {
                 </Select>
               </Field>
               <Field label="회계연도 시작월">
-                <Input inputMode="numeric" value={profileForm.fiscalYearStartMonth} onChange={(event) => updateProfileForm("fiscalYearStartMonth", event.target.value.replace(/\D/g, ""))} />
+                <Select value={profileForm.fiscalYearStartMonth} onValueChange={(value) => updateProfileForm("fiscalYearStartMonth", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="시작월 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fiscalYearStartMonthOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
               <Field label="전년도 매출">
-                <Input inputMode="numeric" value={profileForm.priorYearRevenue} onChange={(event) => updateProfileForm("priorYearRevenue", event.target.value.replace(/\D/g, ""))} />
+                <div className="relative">
+                  <Input
+                    className="pr-10 text-right number-tabular"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={formatAmountInput(profileForm.priorYearRevenue)}
+                    onChange={(event) => updateProfileForm("priorYearRevenue", event.target.value.replace(/\D/g, ""))}
+                  />
+                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">원</span>
+                </div>
               </Field>
               <ToggleField label="청년창업자" checked={profileForm.isYouthFounder} onChange={(value) => updateProfileForm("isYouthFounder", value)} />
               <ToggleField label="벤처 인증" checked={profileForm.isVentureCertified} onChange={(value) => updateProfileForm("isVentureCertified", value)} />
               <ToggleField label="외부감사 대상" checked={profileForm.isExternalAudit} onChange={(value) => updateProfileForm("isExternalAudit", value)} />
               <div className="lg:col-span-3">
-                <Button onClick={handleSaveProfile} disabled={saving}>
+                <Button onClick={handleSaveProfile} disabled={saving || !profileDirty}>
                   {saving ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Save className="size-4" aria-hidden="true" />}
                   프로필 저장
                 </Button>
@@ -359,42 +408,48 @@ export function TaxPage() {
         </TabsContent>
 
         <TabsContent value="agent">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>세법 검색</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Textarea value={taxQuery} onChange={(event) => setTaxQuery(event.target.value)} placeholder="예: 청년창업 중소기업 세액감면 적용 조건" />
-                <Button onClick={handleSearchTaxLaw} disabled={loading || !taxQuery.trim()}>
-                  <Search className="size-4" aria-hidden="true" />
-                  검색
+          <Card>
+            <CardHeader>
+              <CardTitle>AI 세무 전략</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                <Select value={strategyScenario} onValueChange={(value) => setStrategyScenario(value as TaxStrategyScenario)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {taxStrategyScenarios.map((scenario) => (
+                      <SelectItem key={scenario.value} value={scenario.value}>
+                        {scenario.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleRunTaxStrategy} disabled={strategyRunning}>
+                  {strategyRunning ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Sparkles className="size-4" aria-hidden="true" />}
+                  분석 시작
                 </Button>
-                {taxLawResult ? <ResultBox value={taxLawResult} /> : null}
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>적용 가능 혜택</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button onClick={handleFindBenefits} disabled={loading}>
-                  <Bot className="size-4" aria-hidden="true" />
-                  혜택 찾기
-                </Button>
-                {benefits ? (
-                  <div className="space-y-3">
-                    <div className="ym-panel p-3 text-sm">
-                      <p className="text-muted-foreground">예상 절감액</p>
-                      <p className="mt-1 text-2xl font-semibold">{formatCurrency(benefits.totalEstimatedSavings.amount)}</p>
-                    </div>
-                    <ResultBox value={benefits} />
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          </div>
+              {strategyEvents.length > 0 ? (
+                <div className="ym-panel flex items-center justify-between gap-3 p-3 text-sm">
+                  <span className="text-muted-foreground">분석 상태</span>
+                  <Badge variant={strategyRunning ? "warning" : "success"}>{strategyRunning ? "분석 중" : "완료"}</Badge>
+                </div>
+              ) : null}
+
+              {strategyError ? <Notice tone="danger">{strategyError.reason ?? "전략 점검 중 오류가 발생했습니다."}</Notice> : null}
+
+              {strategyText || strategyFinal?.summary ? (
+                <div className="ym-panel whitespace-pre-wrap p-4 text-sm leading-7">
+                  {strategyText || strategyFinal?.summary}
+                </div>
+              ) : (
+                <EmptyText>현재 회사 프로필과 신고 일정을 기준으로 분석합니다.</EmptyText>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </PageShell>
@@ -427,14 +482,6 @@ function EmptyText({ children }: { children: ReactNode }) {
   return <p className="ym-panel p-4 text-sm text-muted-foreground">{children}</p>;
 }
 
-function ResultBox({ value }: { value: unknown }) {
-  return (
-    <pre className="max-h-80 overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-white">
-      {JSON.stringify(value, null, 2)}
-    </pre>
-  );
-}
-
 function profileToForm(profile: CorporationProfile | null): ProfileForm {
   if (!profile) {
     return emptyProfileForm;
@@ -453,6 +500,18 @@ function profileToForm(profile: CorporationProfile | null): ProfileForm {
     vatPrepaymentRecipient: profile.vatPrepaymentRecipient ?? false,
     withholdingCadence: profile.withholdingCadence ?? "MONTHLY"
   };
+}
+
+function isSameProfileForm(left: ProfileForm, right: ProfileForm) {
+  return (Object.keys(emptyProfileForm) as Array<keyof ProfileForm>).every((key) => left[key] === right[key]);
+}
+
+function formatAmountInput(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  return new Intl.NumberFormat("ko-KR").format(Number(value));
 }
 
 function formToProfileRequest(form: ProfileForm) {
@@ -474,7 +533,7 @@ function formToProfileRequest(form: ProfileForm) {
 function toTaxErrorMessage(error: unknown, fallback: string) {
   if (error instanceof YmApiError) {
     if (error.status === 401 || error.code === "UNAUTHORIZED") {
-      return "세무 API가 로그인 정보를 확인하지 못했습니다. 현재 세션으로 다른 화면은 동작한다면 백엔드 Tax Lambda의 JWT claims 검증 또는 배포 상태를 확인해야 합니다.";
+      return "세무 API 인증이 만료되었거나 권한 확인에 실패했습니다. 다시 로그인한 뒤 시도해 주세요.";
     }
 
     return error.message;

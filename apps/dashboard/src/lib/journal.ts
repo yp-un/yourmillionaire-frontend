@@ -37,7 +37,7 @@ export function formatCurrency(value: number | string | null | undefined) {
 }
 
 export function getAccountLabel(accountCode: string, accountLabels?: AccountLabelMap) {
-  return `${accountCode} ${accountLabels?.[accountCode] ?? accountNames[accountCode] ?? "미지정 계정"}`;
+  return accountLabels?.[accountCode] ?? accountNames[accountCode] ?? "미지정 계정";
 }
 
 export function getEntryAmount(entry: JournalEntry) {

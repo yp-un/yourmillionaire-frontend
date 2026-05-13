@@ -5,6 +5,8 @@ import { apiEndpoints } from "./endpoints";
 import type {
   AccountBalancesResponse,
   AccountsChartResponse,
+  AcceptDraftRequest,
+  AcceptDraftResponse,
   AdminTaxLawSyncStateResponse,
   AdminTaxRuleChangeLogResponse,
   AdminTaxRuleReviewsResponse,
@@ -41,10 +43,15 @@ import type {
   ReceivablesBoard,
   SearchTaxLawRequest,
   SearchTaxLawResponse,
+  LatestSyncRunResponse,
   SyncStartResponse,
+  SyncRunDetail,
+  SyncRunsResponse,
   SyncStatusResponse,
   TaxInvoiceDirection,
   TaxInvoicesResponse,
+  TaxStrategyEvent,
+  TaxStrategyScenario,
   Tenant,
   TrialBalanceResponse,
   UpdateReceivableRequest,
@@ -181,6 +188,12 @@ export function createYmApi(getIdToken: GetIdToken) {
       request<JournalDraftsResponse>({
         method: "GET",
         url: apiEndpoints.journalDrafts(tenantId)
+      }),
+    acceptDraft: (tenantId: string, rawTransactionId: string, body: AcceptDraftRequest = {}) =>
+      request<AcceptDraftResponse>({
+        data: body,
+        method: "POST",
+        url: apiEndpoints.journalDraftAccept(tenantId, rawTransactionId)
       })
   };
 
@@ -195,6 +208,29 @@ export function createYmApi(getIdToken: GetIdToken) {
       request<SyncStatusResponse>({
         method: "GET",
         url: apiEndpoints.syncStatus(tenantId)
+      }),
+    listRuns: (tenantId: string, limit = 20) =>
+      request<SyncRunsResponse>({
+        method: "GET",
+        params: { limit },
+        url: apiEndpoints.syncRuns(tenantId)
+      }),
+    getLatestRun: async (tenantId: string): Promise<SyncRunDetail | null> => {
+      const response = await request<LatestSyncRunResponse>({
+        method: "GET",
+        url: apiEndpoints.latestSyncRun(tenantId)
+      });
+
+      if ("run" in response) {
+        return null;
+      }
+
+      return response;
+    },
+    getRun: (tenantId: string, syncRunId: string) =>
+      request<SyncRunDetail>({
+        method: "GET",
+        url: apiEndpoints.syncRun(tenantId, syncRunId)
       })
   };
 
@@ -331,7 +367,9 @@ export function createYmApi(getIdToken: GetIdToken) {
         data: body,
         method: "POST",
         url: apiEndpoints.agentFindBenefits(tenantId)
-      })
+      }),
+    runStrategy: (tenantId: string, scenario: TaxStrategyScenario, onEvent?: (event: TaxStrategyEvent) => void) =>
+      streamTaxStrategy(getIdToken, tenantId, scenario, onEvent)
   };
 
   const admin = {
@@ -400,8 +438,12 @@ export function createYmApi(getIdToken: GetIdToken) {
     classifyJournalEntry: journal.classify,
     createJournalEntry: journal.createEntry,
     getJournalDrafts: journal.getDrafts,
+    acceptJournalDraft: journal.acceptDraft,
     startSync: sync.start,
     getSyncStatus: sync.getStatus,
+    listSyncRuns: sync.listRuns,
+    getLatestSyncRun: sync.getLatestRun,
+    getSyncRun: sync.getRun,
     getMonthlySummary: views.getMonthlySummary,
     getReceivables: views.getReceivables,
     updateReceivable: views.updateReceivable,
@@ -423,7 +465,8 @@ export function createYmApi(getIdToken: GetIdToken) {
     fileWithholding: tax.fileWithholding,
     getTaxInvoices: tax.getTaxInvoices,
     searchTaxLaw: tax.searchTaxLaw,
-    findBenefits: tax.findBenefits
+    findBenefits: tax.findBenefits,
+    runTaxStrategy: tax.runStrategy
   };
 }
 
@@ -435,6 +478,91 @@ function createAxiosInstance(): AxiosInstance {
     },
     timeout: 30_000
   });
+}
+
+async function streamTaxStrategy(
+  getIdToken: GetIdToken,
+  tenantId: string,
+  scenario: TaxStrategyScenario,
+  onEvent?: (event: TaxStrategyEvent) => void
+) {
+  const response = await fetch(`${apiConfig.taxStrategyBaseUrl}${apiEndpoints.taxStrategy(tenantId)}`, {
+    body: JSON.stringify({ tenantId, scenario }),
+    headers: {
+      Accept: "text/event-stream",
+      Authorization: `Bearer ${await getIdToken()}`,
+      "Cache-Control": "no-cache",
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new YmApiError(await responseErrorMessage(response), response.status);
+  }
+
+  if (!response.body) {
+    throw new YmApiError("세무 전략 API 응답 스트림이 비어 있습니다.", response.status);
+  }
+
+  const events: TaxStrategyEvent[] = [];
+  const emit = (event: TaxStrategyEvent) => {
+    events.push(event);
+    onEvent?.(event);
+  };
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    buffer = consumeSseBuffer(buffer, emit);
+  }
+
+  buffer += decoder.decode();
+  consumeSseBuffer(`${buffer}\n\n`, emit);
+
+  return events;
+}
+
+function consumeSseBuffer(buffer: string, emit: (event: TaxStrategyEvent) => void) {
+  const frames = buffer.split(/\r?\n\r?\n/);
+  const rest = frames.pop() ?? "";
+
+  for (const frame of frames) {
+    const data = frame
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart())
+      .join("\n");
+
+    if (!data) {
+      continue;
+    }
+
+    try {
+      emit(JSON.parse(data) as TaxStrategyEvent);
+    } catch {
+      emit({ type: "message", chunk: data });
+    }
+  }
+
+  return rest;
+}
+
+async function responseErrorMessage(response: Response) {
+  try {
+    const body = (await response.json()) as ApiErrorBody;
+    return body?.error?.message ?? body?.message ?? fallbackErrorMessage(response.status);
+  } catch {
+    return fallbackErrorMessage(response.status);
+  }
 }
 
 function toApiError(error: unknown) {

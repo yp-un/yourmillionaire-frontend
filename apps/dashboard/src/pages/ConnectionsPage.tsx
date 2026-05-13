@@ -180,8 +180,8 @@ export function ConnectionsPage() {
 		setWarning(null);
 
 		try {
-			await api.startSync(selectedTenantId);
-			setWarning("수집 파이프라인을 시작했습니다. 처리 상태는 개요 화면에서 확인할 수 있습니다.");
+			const response = await api.startSync(selectedTenantId);
+			setWarning(`수집 요청을 접수했습니다. 실행 ID ${response.syncRunId.slice(0, 8)}의 처리 상태는 개요 화면에서 확인할 수 있습니다.`);
 		} catch (syncError) {
 			setError(syncError instanceof Error ? syncError.message : "수집 파이프라인을 시작하지 못했습니다.");
 		} finally {
@@ -221,7 +221,7 @@ export function ConnectionsPage() {
 					<div>
 						<h3 className="font-semibold">은행 인증</h3>
 						<p className="mt-1 text-sm text-muted-foreground">
-							선택한 은행의 인터넷뱅킹 ID/PW로 CODEF 연결을 시도합니다.
+							선택한 은행의 인터넷뱅킹 ID/PW로 계좌 연결을 시도합니다.
 							은행별 인증 정책에 따라 추가 검증이나 미지원 응답이 있을 수
 							있습니다.
 						</p>
@@ -239,7 +239,7 @@ export function ConnectionsPage() {
 							<SelectContent>
 								{supportedBanks.map((bank) => (
 									<SelectItem key={bank.organization} value={bank.organization}>
-										{bank.label} ({bank.organization})
+										{bank.label}
 									</SelectItem>
 								))}
 							</SelectContent>

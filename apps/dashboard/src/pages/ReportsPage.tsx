@@ -161,7 +161,7 @@ export function ReportsPage() {
               <TableBody>
                 {(trialBalance?.rows ?? []).slice(0, 80).map((row) => (
                   <TableRow key={row.accountCode}>
-                    <TableCell className="font-medium">{row.accountCode} {row.accountName}</TableCell>
+                    <TableCell className="font-medium">{row.accountName}</TableCell>
                     <TableCell className="text-right number-tabular">{formatCurrency(row.debit)}</TableCell>
                     <TableCell className="text-right number-tabular">{formatCurrency(row.credit)}</TableCell>
                     <TableCell className="text-right number-tabular">{formatCurrency(row.balance)}</TableCell>
@@ -195,7 +195,7 @@ function ReportSection({
         ) : (
           items.map((item) => (
             <div key={item.accountCode} className="ym-panel flex items-center justify-between gap-4 px-3 py-2 text-sm">
-              <span>{item.accountCode} {item.accountName}</span>
+              <span>{item.accountName}</span>
               <span className="font-medium number-tabular">{formatCurrency(item.amount)}</span>
             </div>
           ))

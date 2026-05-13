@@ -23,4 +23,7 @@ export const apiConfig = {
 		import.meta.env.VITE_COGNITO_REDIRECT_URI ?? defaultCognitoRedirectUri,
 	cognitoLogoutUri:
 		import.meta.env.VITE_COGNITO_LOGOUT_URI ?? defaultCognitoLogoutUri,
+	taxStrategyBaseUrl: import.meta.env.VITE_TAX_STRATEGY_URL
+		? trimTrailingSlash(import.meta.env.VITE_TAX_STRATEGY_URL)
+		: trimTrailingSlash(import.meta.env.VITE_YM_API_BASE_URL ?? defaultApiBaseUrl),
 };
