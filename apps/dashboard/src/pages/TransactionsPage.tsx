@@ -16,7 +16,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "@millionaire/ui";
-import { EmptyState, MetricCard, Notice, PageHeader, PageShell, SectionCard } from "../components/page";
 import {
 	AlertTriangle,
 	Ban,
@@ -31,8 +30,7 @@ import {
 	Search,
 	X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
-
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useApi } from "../api/ApiProvider";
 import { YmApiError } from "../api/client";
 import type {
@@ -42,6 +40,14 @@ import type {
 	JournalEntry,
 	UncertainEntriesSummary,
 } from "../api/types";
+import {
+	EmptyState,
+	MetricCard,
+	Notice,
+	PageHeader,
+	PageShell,
+	SectionCard,
+} from "../components/page";
 import {
 	type AccountLabelMap,
 	formatCurrency,
@@ -90,6 +96,23 @@ export function TransactionsPage() {
 		null,
 	);
 	const [manualOpen, setManualOpen] = useState(false);
+	const [manualPhase, setManualPhase] = useState<"closed" | "line" | "open">("closed");
+	const manualTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	function handleManualToggle() {
+		if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
+		if (!manualOpen) {
+			// 열기: line(150ms) → clip-path 확장(700ms) → height 성장(900ms)
+			setManualOpen(true);
+			setManualPhase("line");
+			manualTimerRef.current = setTimeout(() => setManualPhase("open"), 380); // 80 + 300
+		} else {
+			// 닫기: height 축소(350ms) → clip-path 수렴(300ms) → 숨김
+			setManualOpen(false);
+			setManualPhase("line");
+			manualTimerRef.current = setTimeout(() => setManualPhase("closed"), 680); // 350 + 300 + 30
+		}
+	}
 	const [manualEntryDate, setManualEntryDate] = useState(getTodayDateInput());
 	const [manualDescription, setManualDescription] = useState("");
 	const [manualLines, setManualLines] = useState<JournalLineDraft[]>(
@@ -408,7 +431,7 @@ export function TransactionsPage() {
 					<Button
 						type="button"
 						variant={manualOpen ? "secondary" : "default"}
-						onClick={() => setManualOpen((current) => !current)}
+						onClick={handleManualToggle}
 					>
 						{manualOpen ? (
 							<X className="size-4" aria-hidden="true" />
@@ -420,60 +443,97 @@ export function TransactionsPage() {
 				}
 			/>
 
-			{manualOpen ? (
+			<div
+				style={{
+					overflow: "hidden",
+					maxHeight:
+						manualPhase === "closed"
+							? "0px"
+							: manualPhase === "line"
+								? "2px"
+								: "800px",
+					transition:
+						manualPhase === "open"
+							? "max-height 420ms cubic-bezier(0.4, 0, 0.2, 1)"
+							: manualPhase === "line" && !manualOpen
+								? "max-height 350ms cubic-bezier(0.4, 0, 0.2, 1)"
+								: "none",
+				}}
+			>
+				<div
+					style={{
+						clipPath:
+							manualPhase === "open" ||
+							(manualPhase === "line" && manualOpen)
+								? "inset(0 0% 0 0%)"
+								: "inset(0 50% 0 50%)",
+						transition:
+							manualPhase === "line" && manualOpen
+								? "clip-path 300ms cubic-bezier(0.4, 0, 0.2, 1)"         // 열기: 즉시 시작
+								: manualPhase === "line" && !manualOpen
+									? "clip-path 300ms cubic-bezier(0.4, 0, 0.2, 1) 350ms" // 닫기: height 끝난 뒤 시작
+									: "none",
+					}}
+				>
 				<SectionCard
 					title="수동 분개 입력"
 					trailing={<Badge variant="secondary">전문가 모드</Badge>}
 				>
-					<div className="space-y-4">
-						<div className="grid gap-3 lg:grid-cols-[12rem_minmax(0,1fr)]">
-							<div className="space-y-2">
-								<Label htmlFor="manual-entry-date">일자</Label>
-								<Input
-									id="manual-entry-date"
-									type="date"
-									value={manualEntryDate}
-									onChange={(event) => setManualEntryDate(event.target.value)}
-								/>
+						<div className="space-y-4">
+							<div className="grid gap-3 lg:grid-cols-[12rem_minmax(0,1fr)]">
+								<div className="space-y-2">
+									<Label htmlFor="manual-entry-date">일자</Label>
+									<Input
+										id="manual-entry-date"
+										type="date"
+										value={manualEntryDate}
+										onChange={(event) => setManualEntryDate(event.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="manual-entry-description">내용</Label>
+									<Input
+										id="manual-entry-description"
+										value={manualDescription}
+										onChange={(event) =>
+											setManualDescription(event.target.value)
+										}
+										placeholder="예: 외주 디자인 비용 지급"
+										maxLength={500}
+									/>
+								</div>
 							</div>
-							<div className="space-y-2">
-								<Label htmlFor="manual-entry-description">내용</Label>
-								<Input
-									id="manual-entry-description"
-									value={manualDescription}
-									onChange={(event) => setManualDescription(event.target.value)}
-									placeholder="예: 외주 디자인 비용 지급"
-									maxLength={500}
-								/>
+
+							<JournalLineEditor
+								accountOptions={accountOptions}
+								lines={manualLines}
+								onChange={setManualLines}
+							/>
+
+							<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+								<p className="text-sm text-muted-foreground">
+									차변 합계와 대변 합계가 같아야 저장됩니다.
+								</p>
+								<Button
+									type="button"
+									onClick={() => void handleCreateManualEntry()}
+									disabled={manualSaving}
+								>
+									{manualSaving ? (
+										<Loader2
+											className="size-4 animate-spin"
+											aria-hidden="true"
+										/>
+									) : (
+										<Save className="size-4" aria-hidden="true" />
+									)}
+									분개 저장
+								</Button>
 							</div>
 						</div>
-
-						<JournalLineEditor
-							accountOptions={accountOptions}
-							lines={manualLines}
-							onChange={setManualLines}
-						/>
-
-						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<p className="text-sm text-muted-foreground">
-								차변 합계와 대변 합계가 같아야 저장됩니다.
-							</p>
-							<Button
-								type="button"
-								onClick={() => void handleCreateManualEntry()}
-								disabled={manualSaving}
-							>
-								{manualSaving ? (
-									<Loader2 className="size-4 animate-spin" aria-hidden="true" />
-								) : (
-									<Save className="size-4" aria-hidden="true" />
-								)}
-								분개 저장
-							</Button>
-						</div>
-					</div>
-				</SectionCard>
-			) : null}
+					</SectionCard>
+				</div>
+			</div>
 
 			<section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 				<div className="group relative w-full max-w-2xl">
