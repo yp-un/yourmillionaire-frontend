@@ -1,21 +1,19 @@
-import * as React from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn } from "../../lib/utils";
-import { Badge } from "../ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge, Card, CardContent, CardHeader, CardTitle, cn } from "@millionaire/ui";
 
-type PageShellProps = React.HTMLAttributes<HTMLDivElement>;
+type PageShellProps = HTMLAttributes<HTMLDivElement>;
 
 function PageShell({ className, ...props }: PageShellProps) {
   return <div className={cn("ym-page space-y-6", className)} {...props} />;
 }
 
 type PageHeaderProps = {
-  actions?: React.ReactNode;
+  actions?: ReactNode;
+  description?: ReactNode;
   eyebrow?: string;
-  description?: React.ReactNode;
-  title: React.ReactNode;
+  title: ReactNode;
 };
 
 function PageHeader({ actions, description, eyebrow, title }: PageHeaderProps) {
@@ -33,9 +31,9 @@ function PageHeader({ actions, description, eyebrow, title }: PageHeaderProps) {
 
 type MetricCardProps = {
   icon?: LucideIcon;
-  label: React.ReactNode;
+  label: ReactNode;
   tone?: "danger" | "default" | "primary" | "success" | "warning";
-  value: React.ReactNode;
+  value: ReactNode;
 };
 
 function MetricCard({ icon: Icon, label, tone = "default", value }: MetricCardProps) {
@@ -52,7 +50,7 @@ function MetricCard({ icon: Icon, label, tone = "default", value }: MetricCardPr
                 tone === "danger" && "text-destructive",
                 tone === "warning" && "text-amber-600 dark:text-amber-300",
                 tone === "success" && "text-emerald-600 dark:text-emerald-300",
-                tone === "default" && "text-muted-foreground"
+                tone === "default" && "text-muted-foreground",
               )}
               aria-hidden="true"
             />
@@ -64,7 +62,7 @@ function MetricCard({ icon: Icon, label, tone = "default", value }: MetricCardPr
   );
 }
 
-function StatusRow({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
+function StatusRow({ label, value }: { label: ReactNode; value: ReactNode }) {
   return (
     <div className="ym-panel flex items-center justify-between gap-4 px-3 py-2 text-sm">
       <span className="text-muted-foreground">{label}</span>
@@ -73,7 +71,15 @@ function StatusRow({ label, value }: { label: React.ReactNode; value: React.Reac
   );
 }
 
-function EmptyState({ children, icon: Icon, title }: { children?: React.ReactNode; icon?: LucideIcon; title: React.ReactNode }) {
+function EmptyState({
+  children,
+  icon: Icon,
+  title,
+}: {
+  children?: ReactNode;
+  icon?: LucideIcon;
+  title: ReactNode;
+}) {
   return (
     <div className="flex min-h-56 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/50 p-8 text-center">
       {Icon ? <Icon className="size-8 text-muted-foreground" aria-hidden="true" /> : null}
@@ -85,9 +91,11 @@ function EmptyState({ children, icon: Icon, title }: { children?: React.ReactNod
 
 function Notice({
   children,
-  tone = "default"
+  className,
+  tone = "default",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
+  className?: string;
   tone?: "danger" | "default" | "success" | "warning";
 }) {
   return (
@@ -97,7 +105,8 @@ function Notice({
         tone === "default" && "border-border bg-card text-foreground",
         tone === "danger" && "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200",
         tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200",
-        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200",
+        className,
       )}
     >
       {children}
@@ -109,12 +118,12 @@ function SectionCard({
   children,
   className,
   title,
-  trailing
+  trailing,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
-  title: React.ReactNode;
-  trailing?: React.ReactNode;
+  title: ReactNode;
+  trailing?: ReactNode;
 }) {
   return (
     <Card className={className}>

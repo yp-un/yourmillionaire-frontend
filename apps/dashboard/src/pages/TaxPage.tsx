@@ -7,9 +7,6 @@ import {
 	CardTitle,
 	Input,
 	Label,
-	Notice,
-	PageHeader,
-	PageShell,
 	Select,
 	SelectContent,
 	SelectItem,
@@ -20,6 +17,7 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@millionaire/ui";
+import { Notice, PageHeader, PageShell } from "../components/page";
 import { Loader2, ReceiptText, Save, Sparkles } from "lucide-react";
 import {
 	type ReactNode,

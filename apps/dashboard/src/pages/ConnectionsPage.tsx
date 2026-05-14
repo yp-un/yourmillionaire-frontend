@@ -2,18 +2,15 @@ import {
 	Badge,
 	Button,
 	cn,
-	EmptyState,
 	Input,
 	Label,
-	Notice,
-	PageHeader,
-	PageShell,
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "@millionaire/ui";
+import { EmptyState, Notice, PageHeader, PageShell } from "../components/page";
 import {
 	AlertTriangle,
 	CheckCircle2,

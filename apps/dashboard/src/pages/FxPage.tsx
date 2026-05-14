@@ -12,14 +12,8 @@ import {
 import {
 	Badge,
 	Button,
-	EmptyState,
 	Input,
 	Label,
-	MetricCard,
-	Notice,
-	PageHeader,
-	PageShell,
-	SectionCard,
 	Select,
 	SelectContent,
 	SelectItem,
@@ -32,6 +26,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@millionaire/ui";
+import { EmptyState, MetricCard, Notice, PageHeader, PageShell, SectionCard } from "../components/page";
 
 import { useApi } from "../api/ApiProvider";
 import type { ExchangeRate, FxAccount, FxStrategyEvent, FxStrategyScenario } from "../api/types";

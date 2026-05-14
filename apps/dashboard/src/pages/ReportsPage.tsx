@@ -5,11 +5,6 @@ import {
   Badge,
   Button,
   Input,
-  MetricCard,
-  Notice,
-  PageHeader,
-  PageShell,
-  SectionCard,
   Table,
   TableBody,
   TableCell,
@@ -19,8 +14,9 @@ import {
   Tabs,
   TabsContent,
   TabsList,
-  TabsTrigger
+  TabsTrigger,
 } from "@millionaire/ui";
+import { MetricCard, Notice, PageHeader, PageShell, SectionCard } from "../components/page";
 
 import { useApi } from "../api/ApiProvider";
 import type {

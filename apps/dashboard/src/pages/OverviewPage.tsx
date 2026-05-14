@@ -10,7 +10,8 @@ import {
   WalletCards
 } from "lucide-react";
 
-import { Badge, Button, Input, MetricCard, Notice, PageHeader, PageShell, SectionCard, StatusRow } from "@millionaire/ui";
+import { Badge, Button, Input } from "@millionaire/ui";
+import { MetricCard, Notice, PageHeader, PageShell, SectionCard, StatusRow } from "../components/page";
 
 import { useApi } from "../api/ApiProvider";
 import type {
@@ -328,10 +329,12 @@ export function OverviewPage() {
               <p className="text-sm text-muted-foreground">AI 자동 분류 결과를 모두 확정했습니다.</p>
             ) : (
               <>
-                <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                  <span>확신도가 낮은 분개 {uncertainCount}건을 확인해야 합니다.</span>
-                </div>
+                <Notice tone="warning">
+                  <div className="flex gap-2">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <span>확신도가 낮은 분개 {uncertainCount}건을 확인해야 합니다.</span>
+                  </div>
+                </Notice>
                 {uncertainEntries.slice(0, 3).map((entry) => (
                   <div key={entry.id} className="rounded-md border p-3 text-sm">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

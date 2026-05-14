@@ -2,14 +2,8 @@ import {
 	Badge,
 	Button,
 	cn,
-	EmptyState,
 	Input,
 	Label,
-	MetricCard,
-	Notice,
-	PageHeader,
-	PageShell,
-	SectionCard,
 	Select,
 	SelectContent,
 	SelectItem,
@@ -22,6 +16,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@millionaire/ui";
+import { EmptyState, MetricCard, Notice, PageHeader, PageShell, SectionCard } from "../components/page";
 import {
 	AlertTriangle,
 	Ban,

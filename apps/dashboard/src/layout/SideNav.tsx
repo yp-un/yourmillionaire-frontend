@@ -140,14 +140,14 @@ export function SideNav({ isOpen, onSidebarToggle }: SideNavProps) {
 							<span className="block truncate text-sm">
 								{me?.email ?? "사용자"}
 							</span>
-							<span className="block text-xs font-normal text-slate-500">
+							<span className="block text-xs font-normal text-muted-foreground">
 								프로필
 							</span>
 						</DropdownMenuLabel>
 						{tenants.length > 0 ? (
 							<>
 								<DropdownMenuSeparator />
-								<DropdownMenuLabel className="text-xs font-medium text-slate-500">
+								<DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
 									워크스페이스
 								</DropdownMenuLabel>
 								<DropdownMenuRadioGroup

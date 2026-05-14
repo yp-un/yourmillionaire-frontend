@@ -94,9 +94,9 @@ export default function Home() {
 						<span>YourMillionaire</span>
 					</Link>
 					<nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-						<Link href="#persona">대상 사용자</Link>
-						<Link href="#workflow">사용 흐름</Link>
-						<Link href="#features">기능</Link>
+						<Link href="#persona" className="transition-colors hover:text-foreground">대상 사용자</Link>
+						<Link href="#workflow" className="transition-colors hover:text-foreground">사용 흐름</Link>
+						<Link href="#features" className="transition-colors hover:text-foreground">기능</Link>
 					</nav>
 					<Button asChild size="sm">
 						<Link href={DASHBOARD_URL}>
@@ -111,7 +111,7 @@ export default function Home() {
 						<Badge variant="secondary" className="mb-5">
 							청년창업자를 위한 회계 정리
 						</Badge>
-						<h1 className="text-balance text-5xl font-semibold tracking-normal text-foreground sm:text-6xl">
+						<h1 className="text-balance text-5xl font-bold tracking-tight text-foreground sm:text-6xl">
 							결제만 하면, 회계 정리는 이미 끝나 있어야 하니까
 						</h1>
 						<p className="mt-5 max-w-xl text-balance text-lg leading-8 text-muted-foreground">
@@ -184,14 +184,19 @@ export default function Home() {
 					</div>
 
 					<StaggerGroup className="mt-8 grid gap-4 md:grid-cols-3">
-						{workflow.map((item) => {
+						{workflow.map((item, index) => {
 							const Icon = item.icon;
 							return (
 								<StaggerItem key={item.title}>
 									<Card>
 										<CardHeader>
-											<div className="mb-3 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-												<Icon className="size-5" aria-hidden="true" />
+											<div className="mb-3 flex items-center gap-3">
+												<div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+													<Icon className="size-5" aria-hidden="true" />
+												</div>
+												<span className="text-xs font-semibold tracking-widest text-muted-foreground/50">
+													{String(index + 1).padStart(2, "0")}
+												</span>
 											</div>
 											<CardTitle>{item.title}</CardTitle>
 										</CardHeader>
@@ -207,8 +212,8 @@ export default function Home() {
 			</Reveal>
 
 			<Reveal>
-				<section id="features" className="container">
-					<div className="container grid gap-8 py-16 lg:grid-cols-[1fr_0.9fr]">
+				<section id="features" className="container py-16">
+					<div className="grid gap-8 lg:grid-cols-[1fr_0.9fr]">
 						<div>
 							<Badge variant="outline">Available Now</Badge>
 							<h2 className="mt-4 text-3xl font-semibold tracking-normal">

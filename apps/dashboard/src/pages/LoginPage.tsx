@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router";
-import { Landmark, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 import { Button } from "@millionaire/ui";
+import { Notice } from "../components/page";
 
 import { useAuth } from "../auth/AuthProvider";
 
@@ -41,8 +42,8 @@ export function LoginPage() {
     <main className="flex min-h-screen bg-background text-foreground">
       <section className="hidden min-h-screen flex-1 border-r bg-card p-10 lg:flex lg:flex-col lg:justify-between">
         <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-full bg-primary text-white">
-            <Landmark className="size-5" aria-hidden="true" />
+          <span className="flex size-10 items-center justify-center">
+            <img width={30} height={30} src="https://cdn.yourmillionaire.kro.kr/logo.png" alt="로고" />
           </span>
           <div>
             <p className="font-semibold">YourMillionaire</p>
@@ -56,26 +57,26 @@ export function LoginPage() {
             로그인 후 개인 워크스페이스가 자동으로 준비됩니다. 계좌를 연결하면 수집된 거래가 복식부기 분개로 정리됩니다.
           </p>
         </div>
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
-          <div className="mb-2 flex items-center gap-2 font-semibold">
+        <Notice tone="success">
+          <div className="mb-1 flex items-center gap-2 font-semibold">
             <ShieldCheck className="size-4" aria-hidden="true" />
             연결 정보
           </div>
           은행 비밀번호는 연결 생성에만 사용되며 평문으로 저장되지 않습니다.
-        </div>
+        </Notice>
       </section>
 
       <section className="flex flex-1 items-center justify-center p-6">
         <div className="ym-surface w-full max-w-md p-8">
           <div className="mb-8">
-            <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-primary text-white lg:hidden">
-              <Landmark className="size-6" aria-hidden="true" />
+            <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10 lg:hidden">
+              <img width={32} height={32} src="https://cdn.yourmillionaire.kro.kr/logo.png" alt="로고" />
             </div>
             <h2 className="text-2xl font-semibold">로그인</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">Google 계정으로 로그인해 워크스페이스를 불러옵니다.</p>
           </div>
 
-          {error ? <p className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">{error}</p> : null}
+          {error ? <Notice tone="danger" className="mb-4">{error}</Notice> : null}
 
           <Button className="h-11 w-full" disabled={isRedirecting || status === "loading"} onClick={handleSignIn}>
             {isRedirecting ? "이동 중..." : "Google로 계속하기"}
