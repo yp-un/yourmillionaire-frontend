@@ -121,7 +121,8 @@ export function TransactionsPage() {
 				(entry.description ?? "").toLowerCase().includes(normalizedQuery) ||
 				entry.lines.some((line) => {
 					const accountLabel = (
-						line.accountName ?? getAccountLabelForEntry(line.accountCode, accountLabels)
+						line.accountName ??
+						getAccountLabelForEntry(line.accountCode, accountLabels)
 					).toLowerCase();
 
 					return (
@@ -445,9 +446,7 @@ export function TransactionsPage() {
 								<Input
 									id="manual-entry-description"
 									value={manualDescription}
-									onChange={(event) =>
-										setManualDescription(event.target.value)
-									}
+									onChange={(event) => setManualDescription(event.target.value)}
 									placeholder="예: 외주 디자인 비용 지급"
 									maxLength={500}
 								/>
@@ -470,10 +469,7 @@ export function TransactionsPage() {
 								disabled={manualSaving}
 							>
 								{manualSaving ? (
-									<Loader2
-										className="size-4 animate-spin"
-										aria-hidden="true"
-									/>
+									<Loader2 className="size-4 animate-spin" aria-hidden="true" />
 								) : (
 									<Save className="size-4" aria-hidden="true" />
 								)}
@@ -1135,7 +1131,7 @@ function buildJournalLines(
 		credit: parseMoney(draft.credit),
 		debit: parseMoney(draft.debit),
 		lineNo: index + 1,
-		memo: draft.memo.trim() || null,
+		memo: draft.memo.trim() || undefined,
 	}));
 
 	if (lines.length < 2) {
